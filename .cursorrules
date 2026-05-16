@@ -1,0 +1,167 @@
+# Basket-Bud Cursor Rules
+
+## Project Overview
+Basket-Bud is a React Native + Node.js/Express + PostgreSQL app for scanning grocery receipts, extracting prices via Tesseract.js OCR, and comparing costs across multiple shops with analytics dashboards built with Recharts.
+
+## Architecture
+- **Frontend**: React Native (mobile app)
+- **Backend**: Node.js with Express (REST API)
+- **Database**: PostgreSQL
+- **OCR**: Tesseract.js (receipt scanning)
+- **Data Visualisation**: Recharts
+- **Hosting**: Self-hosted on home server
+
+## Folder Structure
+```
+basket-bud/
+├── mobile/                    # React Native frontend
+│   ├── src/
+│   │   ├── components/        # Reusable UI components
+│   │   │   ├── common/        # Buttons, inputs, cards, etc.
+│   │   │   ├── receipt/       # Receipt scanning and display components
+│   │   │   ├── comparison/    # Price comparison UI components
+│   │   │   └── dashboard/     # Analytics dashboard components
+│   │   ├── screens/           # Full screen components
+│   │   │   ├── HomeScreen.tsx
+│   │   │   ├── ScanReceiptScreen.tsx
+│   │   │   ├── ProductsScreen.tsx
+│   │   │   ├── ComparisonScreen.tsx
+│   │   │   └── DashboardScreen.tsx
+│   │   ├── navigation/        # React Navigation setup
+│   │   ├── hooks/             # Custom React hooks
+│   │   ├── services/          # API calls to backend
+│   │   ├── store/             # State management (Context or Redux)
+│   │   ├── types/             # TypeScript interfaces and types
+│   │   └── utils/             # Helper functions
+│   ├── assets/                # Images, fonts, icons
+│   └── App.tsx
+├── server/                    # Node.js/Express backend
+│   ├── src/
+│   │   ├── controllers/       # Route handler logic
+│   │   │   ├── receiptController.ts
+│   │   │   ├── productController.ts
+│   │   │   ├── shopController.ts
+│   │   │   └── analyticsController.ts
+│   │   ├── routes/            # Express route definitions
+│   │   ├── services/          # Business logic
+│   │   │   ├── ocrService.ts  # Tesseract.js OCR processing
+│   │   │   ├── parserService.ts # Receipt text parsing
+│   │   │   ├── normalisationService.ts # Price-per-unit/weight
+│   │   │   └── analyticsService.ts
+│   │   ├── models/            # PostgreSQL query functions
+│   │   ├── middleware/        # Auth, validation, error handling
+│   │   ├── db/                # Database connection and migrations
+│   │   │   ├── connection.ts
+│   │   │   ├── migrations/
+│   │   │   └── seeds/
+│   │   └── utils/             # Shared utilities
+│   ├── uploads/               # Temporary receipt image storage
+│   └── server.ts
+├── docs/                      # Project documentation
+└── docker-compose.yml         # For local/home server deployment
+```
+
+## Coding Conventions
+
+### General
+- Use **TypeScript** throughout — both React Native and Node.js backend
+- Use **British English** in comments, variable names, and documentation (e.g., `normalise` not `normalize`, `categorise` not `categorize`)
+- Prefer `const` over `let`; never use `var`
+- Use meaningful, descriptive names — no abbreviations unless widely understood (e.g., `OCR`, `ID`)
+- Always handle errors explicitly — no silent failures, especially in OCR and database operations
+- Write JSDoc comments for all exported functions and complex logic
+
+### TypeScript
+- Always define explicit return types for functions
+- Use interfaces for object shapes; use `type` for unions, intersections, and aliases
+- Avoid `any` — use `unknown` and type guards when type is genuinely uncertain
+- Keep types in `types/` directories; use barrel exports (`index.ts`)
+
+```typescript
+// Good
+interface Product {
+  id: string;
+  name: string;
+  category: ProductCategory;
+  pricePerUnit: number | null;
+  pricePerWeight: number | null; // pence per gram
+}
+
+// Bad
+const product: any = { ... }
+```
+
+### React Native
+- Use **functional components** with hooks only — no class components
+- Keep screen components lean; extract logic into custom hooks
+- Name screen components with `Screen` suffix (e.g., `ComparisonScreen`)
+- Name reusable components descriptively (e.g., `PriceComparisonCard`, `ShopBadge`)
+- Use `StyleSheet.create()` for all styles — no inline style objects except for truly dynamic values
+- Handle loading, error, and empty states explicitly in every screen
+
+### Express Backend
+- Use `async/await` for all async operations — no raw Promise chains
+- Wrap all async route handlers in a `catchAsync` utility to avoid unhandled rejections
+- Use express-validator or zod for request validation before touching the database
+- Return consistent JSON response shapes:
+```typescript
+// Success
+{ success: true, data: T, message?: string }
+// Error
+{ success: false, error: string, details?: unknown }
+```
+- Use HTTP status codes correctly: 200, 201, 400, 404, 422, 500
+- Never expose raw PostgreSQL errors to the client
+
+### PostgreSQL / Database
+- Use **parameterised queries** always — never string interpolation in SQL
+- Keep SQL in model files, not in controllers or services
+- Use snake_case for all database column and table names
+- Store prices in **pence (integer)** to avoid floating point issues
+- Store weights in **grams (integer)**
+- All tables must have `created_at` and `updated_at` timestamps
+
+### OCR (Tesseract.js)
+- All Tesseract.js processing happens on the **backend** (server), not in the mobile app
+- Mobile sends the image file; backend runs OCR and returns structured data
+- Preprocess images before OCR (greyscale, contrast enhancement) to improve accuracy
+- Always log raw OCR output during development for debugging parser logic
+- The receipt parser should be tolerant of OCR errors — use fuzzy matching where appropriate
+
+### Price Normalisation
+- Always normalise to a **per-100g** or **per-unit** basis before comparisons
+- Store both the raw price and the normalised price in the database
+- Document the normalisation formula in the `normalisationService.ts` file
+
+### Analytics (Recharts)
+- Recharts is used only in the React Native app via a compatible wrapper or web view
+- Keep chart data transformation logic in dedicated hooks (e.g., `useSpendingBreakdown`)
+- All currency displays should show pounds with 2 decimal places (e.g., `£2.49`)
+
+## What NOT to Do
+- Do NOT use paid APIs — stick to Tesseract.js for OCR and open-source libraries only
+- Do NOT store raw receipt images permanently — delete after OCR processing is complete
+- Do NOT put database credentials, secrets, or API keys in source code
+- Do NOT skip input validation on backend routes — all user input must be validated
+- Do NOT use `console.log` in production code — use a proper logger (e.g., `winston` or `pino`)
+- Do NOT create components longer than ~200 lines — split into smaller pieces
+- Do NOT mix business logic into controllers — controllers call services; services contain logic
+
+## Key Domain Concepts
+- **Shop**: A specific store (e.g., "Tesco Kirkstall", "Aldi City Centre")
+- **Product**: A grocery item with a canonical name and category
+- **ReceiptItem**: A single line from a scanned receipt linking a product, shop, date, and price
+- **PricePerUnit**: Cost divided by quantity (e.g., cost per tin, per bottle)
+- **PricePerWeight**: Cost divided by weight in grams, normalised to per-100g
+- **Category**: Product type grouping (e.g., Dairy, Produce, Bakery, Meat, Frozen, Household)
+- **Comparison**: Aggregated view of the same product across multiple shops
+
+## Suggested Libraries
+- `multer` — handling image uploads on the backend
+- `sharp` — image preprocessing before Tesseract OCR
+- `pg` or `postgres` — PostgreSQL client
+- `zod` — schema validation for API requests and OCR output parsing
+- `winston` — structured logging
+- `react-navigation` — mobile navigation
+- `react-native-camera` or `expo-image-picker` — camera access for receipt scanning
+- `date-fns` — date handling and formatting
