@@ -43,32 +43,31 @@ No paid APIs. No subscriptions. Everything runs on your own hardware.
 
 ```
 basket-bud/
-├── mobile/                     # React Native app
+├── frontend/                   # React Native (Expo) app
 │   ├── src/
-│   │   ├── screens/            # App screens (Home, Scan, Compare, Dashboard)
-│   │   ├── components/         # Reusable UI components
-│   │   ├── navigation/         # React Navigation setup
-│   │   ├── api/                # API client functions
-│   │   ├── hooks/              # Custom React hooks
-│   │   └── utils/              # Helpers (formatting, normalisation)
-│   ├── assets/                 # Images, fonts, icons
-│   └── App.tsx
+│   │   ├── screens/            # HomeScreen, ScanReceiptScreen, CompareScreen, DashboardScreen
+│   │   ├── components/         # ReceiptCard, ProductRow, ShopBadge, SpendingChart, ...
+│   │   ├── navigation/         # AppNavigator (bottom tabs + stacks)
+│   │   ├── services/api.js     # Axios API client
+│   │   ├── hooks/              # useReceipts, useProducts, useAnalytics
+│   │   ├── store/              # Zustand state stores
+│   │   └── utils/              # formatCurrency, unitHelpers, normalise
+│   ├── App.js
+│   └── app.json                # Expo config
 │
-├── server/                     # Node.js + Express backend
-│   ├── src/
-│   │   ├── routes/             # Express route handlers
-│   │   ├── controllers/        # Business logic
-│   │   ├── services/           # OCR processing, price normalisation
-│   │   ├── models/             # Database query functions
-│   │   ├── middleware/         # Auth, error handling, validation
-│   │   └── db/                 # PostgreSQL connection + migrations
-│   ├── uploads/                # Temporary receipt image storage
-│   └── index.js
+├── backend/                    # Node.js + Express API
+│   ├── config/db.js            # PostgreSQL connection pool
+│   ├── routes/                 # receipts, products, shops, analytics
+│   ├── controllers/            # HTTP handlers (thin layer)
+│   ├── services/               # ocrService, parserService, normalisationService, analyticsService
+│   ├── models/                 # Receipt, Product, Shop, PriceRecord (raw SQL)
+│   ├── middleware/             # upload (multer), errorHandler
+│   ├── migrations/             # 001–004 SQL migrations + migrate.js runner
+│   ├── uploads/receipts/       # Receipt image storage (gitignored)
+│   └── server.js
 │
 ├── docs/                       # Project documentation
-│   └── PRD.md
-│
-├── docker-compose.yml          # Self-hosting configuration
+├── docker-compose.yml          # PostgreSQL for development
 ├── .env.example
 └── README.md
 ```
@@ -80,60 +79,70 @@ basket-bud/
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL 15+
-- React Native development environment ([see RN docs](https://reactnative.dev/docs/environment-setup))
-- Android emulator / physical device for testing
+- Docker (for PostgreSQL) or a local PostgreSQL 15+ installation
+- Expo Go app on your phone, or an Android/iOS emulator
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/basket-bud.git
+git clone https://github.com/ConorAp1/basket-bud.git
 cd basket-bud
 ```
 
 ### 2. Configure Environment Variables
 
 ```bash
-cp .env.example .env
-# Edit .env with your database credentials and server IP
+# Copy the example and fill in your values
+cp .env.example backend/.env
+# Key values to set: DB_HOST, DB_NAME, DB_USER, DB_PASSWORD
 ```
 
-### 3. Set Up the Database
+### 3. Start the Database
 
 ```bash
-cd server
+docker compose up -d
+```
+
+### 4. Run Migrations
+
+```bash
+cd backend
 npm install
-npm run db:migrate
-npm run db:seed      # optional: loads sample data
+node migrations/migrate.js
 ```
 
-### 4. Start the Backend
+This creates the `shops`, `products`, `receipts`, and `price_records` tables and seeds common UK supermarkets.
+
+### 5. Start the Backend
 
 ```bash
-cd server
+cd backend
 npm run dev
-# Server runs on http://localhost:3001
+# API available at http://localhost:3001
+# Health check: GET http://localhost:3001/health
 ```
 
-### 5. Start the Mobile App
+### 6. Start the Frontend
 
 ```bash
-cd mobile
+cd frontend
 npm install
-npx react-native start
-# In a separate terminal:
-npx react-native run-android
+npx expo start
+# Scan the QR code with Expo Go, or press 'a' for Android emulator
 ```
+
+Set `EXPO_PUBLIC_API_BASE_URL` in your environment (or `frontend/.env`) to your backend address — use your machine's local network IP (e.g. `http://192.168.1.x:3001/api`) when running on a real phone.
 
 ### Self-Hosting on a Home Server
 
-A `docker-compose.yml` is provided to run the backend and PostgreSQL together:
+A `docker-compose.yml` is provided to run PostgreSQL. The backend runs as a Node.js process managed by PM2:
 
 ```bash
-docker-compose up -d
+npm install -g pm2
+cd backend && pm2 start server.js --name basket-bud-api
 ```
 
-Ensure your home server's local IP is set in the mobile app's `.env` so the React Native client can reach the API.
+Ensure your home server's local IP is set as `EXPO_PUBLIC_API_BASE_URL` in the frontend config.
 
 ---
 
