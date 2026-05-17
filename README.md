@@ -103,11 +103,12 @@ cp .env.example backend/.env
 docker compose up -d
 ```
 
-### 4. Run Migrations
+### 4. Install Dependencies and Download OCR Data
 
 ```bash
 cd backend
 npm install
+npm run setup:tessdata   # downloads eng.traineddata (~5MB) for offline OCR
 node migrations/migrate.js
 ```
 

@@ -1,6 +1,16 @@
 require('dotenv').config();
 require('express-async-errors');
 
+// Prevent worker-thread errors (e.g. Tesseract network failures) from crashing the process.
+process.on('unhandledRejection', (err) => {
+  const logger = require('./utils/logger');
+  logger.error('Unhandled promise rejection', { message: err?.message });
+});
+process.on('uncaughtException', (err) => {
+  const logger = require('./utils/logger');
+  logger.error('Uncaught exception', { message: err?.message, stack: err?.stack });
+});
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
