@@ -1,0 +1,14 @@
+node_modules/
+.env
+*.log
+backend/uploads/receipts/*.jpg
+backend/uploads/receipts/*.jpeg
+backend/uploads/receipts/*.png
+backend/uploads/receipts/*.webp
+backend/uploads/
+frontend/.expo/
+frontend/dist/
+frontend/web-build/
+.DS_Store
+*.swp
+*.swo
