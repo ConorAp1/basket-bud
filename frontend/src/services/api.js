@@ -105,4 +105,19 @@ export async function getCheapestShop(productId) {
   return data;
 }
 
+export async function getTopProducts(params = {}) {
+  const { data } = await api.get('/analytics/top-products', { params });
+  return data;
+}
+
+export async function getShopComparison(params = {}) {
+  const { data } = await api.get('/analytics/shop-comparison', { params });
+  return data;
+}
+
+export async function getPriceAlerts() {
+  const { data } = await api.get('/analytics/price-alerts');
+  return data;
+}
+
 export default api;

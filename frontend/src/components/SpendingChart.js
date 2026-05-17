@@ -1,10 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import Svg, { Rect, Text as SvgText, G } from 'react-native-svg';
 
-const { width } = Dimensions.get('window');
-const BAR_MAX_WIDTH = width - 80;
+const MARGIN_LEFT = 112;
+const MARGIN_RIGHT = 60;
+const MARGIN_V = 8;
+const BAR_HEIGHT = 22;
+const BAR_GAP = 8;
 
-export default function SpendingChart({ data, title }) {
+export default function SpendingChart({ data, title, labelKey, valueKey, color = '#2d6a4f' }) {
   if (!data || data.length === 0) {
     return (
       <View style={styles.empty}>
@@ -13,38 +17,73 @@ export default function SpendingChart({ data, title }) {
     );
   }
 
-  const maxSpend = Math.max(...data.map((d) => parseFloat(d.total_spend || 0)));
+  const resolvedLabelKey = labelKey || (data[0]?.shop_name !== undefined ? 'shop_name' : 'category');
+  const resolvedValueKey = valueKey || 'total_spend';
+
+  const screenWidth = Dimensions.get('window').width - 32;
+  const plotWidth = screenWidth - MARGIN_LEFT - MARGIN_RIGHT;
+  const svgHeight = data.length * (BAR_HEIGHT + BAR_GAP) + MARGIN_V * 2;
+  const maxVal = Math.max(...data.map((d) => parseFloat(d[resolvedValueKey] || 0)));
 
   return (
     <View style={styles.container}>
       {title && <Text style={styles.title}>{title}</Text>}
-      {data.map((item, idx) => {
-        const label = item.shop_name || item.category || `Item ${idx}`;
-        const spend = parseFloat(item.total_spend || 0);
-        const barWidth = maxSpend > 0 ? (spend / maxSpend) * BAR_MAX_WIDTH : 0;
+      <Svg width={screenWidth} height={svgHeight}>
+        {data.map((item, idx) => {
+          const value = parseFloat(item[resolvedValueKey] || 0);
+          const rawLabel = String(item[resolvedLabelKey] || `Item ${idx + 1}`);
+          const label = rawLabel.length > 15 ? rawLabel.slice(0, 14) + '…' : rawLabel;
+          const barW = maxVal > 0 ? Math.max(2, (value / maxVal) * plotWidth) : 2;
+          const y = MARGIN_V + idx * (BAR_HEIGHT + BAR_GAP);
+          const cy = y + BAR_HEIGHT / 2 + 4;
 
-        return (
-          <View key={label} style={styles.row}>
-            <Text style={styles.label} numberOfLines={1}>{label}</Text>
-            <View style={styles.barTrack}>
-              <View style={[styles.bar, { width: barWidth }]} />
-            </View>
-            <Text style={styles.value}>£{spend.toFixed(2)}</Text>
-          </View>
-        );
-      })}
+          return (
+            <G key={rawLabel + idx}>
+              <SvgText
+                x={MARGIN_LEFT - 6}
+                y={cy}
+                textAnchor="end"
+                fontSize={12}
+                fill="#555"
+              >
+                {label}
+              </SvgText>
+              <Rect
+                x={MARGIN_LEFT}
+                y={y}
+                width={plotWidth}
+                height={BAR_HEIGHT}
+                rx={5}
+                fill="#f0f0f0"
+              />
+              <Rect
+                x={MARGIN_LEFT}
+                y={y}
+                width={barW}
+                height={BAR_HEIGHT}
+                rx={5}
+                fill={color}
+              />
+              <SvgText
+                x={MARGIN_LEFT + barW + 5}
+                y={cy}
+                fontSize={11}
+                fill="#333"
+                fontWeight="600"
+              >
+                {`£${value.toFixed(2)}`}
+              </SvgText>
+            </G>
+          );
+        })}
+      </Svg>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  title: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', marginBottom: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  label: { width: 90, fontSize: 13, color: '#555', marginRight: 8 },
-  barTrack: { flex: 1, height: 16, backgroundColor: '#f0f0f0', borderRadius: 8, overflow: 'hidden' },
-  bar: { height: 16, backgroundColor: '#2d6a4f', borderRadius: 8 },
-  value: { width: 54, textAlign: 'right', fontSize: 13, fontWeight: '600', color: '#2d6a4f', marginLeft: 8 },
-  empty: { padding: 40, alignItems: 'center' },
+  container: { paddingHorizontal: 16, paddingVertical: 12 },
+  title: { fontSize: 15, fontWeight: '700', color: '#1a1a2e', marginBottom: 10 },
+  empty: { padding: 32, alignItems: 'center' },
   emptyText: { color: '#aaa', fontSize: 14 },
 });

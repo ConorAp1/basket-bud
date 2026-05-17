@@ -31,10 +31,16 @@ export const useAnalyticsStore = create((set) => ({
   summary: null,
   byShop: [],
   byCategory: [],
+  topProducts: [],
+  shopComparison: [],
+  priceAlerts: [],
   dateRange: '30',
 
   setSummary: (summary) => set({ summary }),
   setByShop: (byShop) => set({ byShop }),
   setByCategory: (byCategory) => set({ byCategory }),
+  setTopProducts: (topProducts) => set({ topProducts }),
+  setShopComparison: (shopComparison) => set({ shopComparison }),
+  setPriceAlerts: (priceAlerts) => set({ priceAlerts }),
   setDateRange: (dateRange) => set({ dateRange }),
 }));
