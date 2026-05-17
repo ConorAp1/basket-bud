@@ -34,7 +34,13 @@ const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads', 'rec
 fs.mkdirSync(uploadDir, { recursive: true });
 
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+// In production, FRONTEND_URL must be set; in development allow all origins.
+const corsOrigin = process.env.FRONTEND_URL
+  || (process.env.NODE_ENV === 'production' ? false : true);
+if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+  logger.warn('FRONTEND_URL is not set — all cross-origin requests will be blocked in production');
+}
+app.use(cors({ origin: corsOrigin }));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
