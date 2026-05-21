@@ -73,6 +73,20 @@ export async function searchProducts(q) {
   return data;
 }
 
+export async function getMerges(productId) {
+  const { data } = await api.get(`/products/${productId}/merges`);
+  return data;
+}
+
+export async function mergeProduct(productId, mergeWithProductId) {
+  const { data } = await api.post(`/products/${productId}/merge`, { mergeWithProductId });
+  return data;
+}
+
+export async function deleteMerge(productId, mergeId) {
+  await api.delete(`/products/${productId}/merge/${mergeId}`);
+}
+
 // Shops
 export async function getShops() {
   const { data } = await api.get('/shops');

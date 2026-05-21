@@ -54,4 +54,19 @@ async function findByProduct(productId) {
   return rows;
 }
 
-module.exports = { createMany, findByReceiptId, findByProduct };
+async function findByProducts(productIds) {
+  if (!productIds.length) return [];
+  const placeholders = productIds.map((_, i) => `$${i + 1}`).join(', ');
+  const { rows } = await pool.query(
+    `SELECT pr.*, s.name AS shop_name, r.scanned_at
+     FROM price_records pr
+     JOIN receipts r ON r.id = pr.receipt_id
+     JOIN shops s ON s.id = pr.shop_id
+     WHERE pr.product_id IN (${placeholders})
+     ORDER BY r.scanned_at DESC`,
+    productIds
+  );
+  return rows;
+}
+
+module.exports = { createMany, findByReceiptId, findByProduct, findByProducts };

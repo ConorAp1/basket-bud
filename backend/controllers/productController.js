@@ -1,5 +1,6 @@
 const ProductModel = require('../models/Product');
 const PriceRecordModel = require('../models/PriceRecord');
+const ProductMergeModel = require('../models/ProductMerge');
 
 async function getProducts(req, res) {
   const { category, search, limit, offset } = req.query;
@@ -28,7 +29,9 @@ async function compareProduct(req, res) {
   const product = await ProductModel.findById(req.params.id);
   if (!product) return res.status(404).json({ error: `Product ${req.params.id} not found` });
 
-  const priceHistory = await PriceRecordModel.findByProduct(req.params.id);
+  const relatedIds = await ProductMergeModel.getRelatedProductIds(req.params.id);
+  const allIds = [parseInt(req.params.id, 10), ...relatedIds];
+  const priceHistory = await PriceRecordModel.findByProducts(allIds);
 
   const byShop = {};
   for (const record of priceHistory) {
