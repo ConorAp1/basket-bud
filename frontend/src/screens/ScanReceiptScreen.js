@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { scanReceipt, confirmReceipt } from '../services/api';
-import { normaliseItems } from '../utils/normalise';
 
 const CATEGORIES = [
   'Dairy', 'Drinks', 'Produce', 'Bakery', 'Meat',
