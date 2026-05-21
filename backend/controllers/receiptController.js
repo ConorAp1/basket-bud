@@ -27,10 +27,6 @@ async function scanReceipt(req, res) {
 async function confirmReceipt(req, res) {
   const { shopName, shopLocation, scannedAt, items, totalAmount } = req.body;
 
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'No items provided' });
-  }
-
   const shop = shopName ? await ShopModel.findOrCreate({ name: shopName, location: shopLocation }) : null;
 
   const receipt = await ReceiptModel.create({
