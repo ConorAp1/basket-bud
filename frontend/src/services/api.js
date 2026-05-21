@@ -68,6 +68,11 @@ export async function compareProduct(id) {
   return data;
 }
 
+export async function getProductCategories() {
+  const { data } = await api.get('/products/categories');
+  return data;
+}
+
 export async function searchProducts(q) {
   const { data } = await api.get('/products/search', { params: { q } });
   return data;

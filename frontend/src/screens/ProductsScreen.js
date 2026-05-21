@@ -2,14 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TextInput, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useProducts } from '../hooks/useProducts';
 import CategoryTag from '../components/CategoryTag';
-import { formatNormalisedPrice } from '../utils/unitHelpers';
-
-const CATEGORIES = ['All', 'Dairy', 'Produce', 'Bakery', 'Meat', 'Seafood', 'Frozen', 'Drinks', 'Snacks', 'Household'];
+import { getProductCategories } from '../services/api';
 
 export default function ProductsScreen({ navigation }) {
   const { products, loading, fetchProducts } = useProducts();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [categories, setCategories] = useState(['All']);
+
+  useEffect(() => {
+    getProductCategories()
+      .then((cats) => setCategories(['All', ...cats]))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetchProducts({
@@ -32,7 +37,7 @@ export default function ProductsScreen({ navigation }) {
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={CATEGORIES}
+          data={categories}
           keyExtractor={(c) => c}
           renderItem={({ item }) => (
             <TouchableOpacity

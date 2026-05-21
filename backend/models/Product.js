@@ -49,6 +49,13 @@ async function update(id, { name, brand, category, tags, canonical_unit }) {
   return rows[0] || null;
 }
 
+async function getCategories() {
+  const { rows } = await pool.query(
+    `SELECT DISTINCT category FROM products WHERE category IS NOT NULL ORDER BY category ASC`
+  );
+  return rows.map((r) => r.category);
+}
+
 async function fuzzySearch(name) {
   const { rows } = await pool.query(
     `SELECT *, similarity(name, $1) AS sim
@@ -61,4 +68,4 @@ async function fuzzySearch(name) {
   return rows;
 }
 
-module.exports = { findAll, findById, create, update, fuzzySearch };
+module.exports = { findAll, findById, create, update, getCategories, fuzzySearch };

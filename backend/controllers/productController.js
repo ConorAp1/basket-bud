@@ -63,4 +63,9 @@ async function searchProducts(req, res) {
   res.json(results);
 }
 
-module.exports = { getProducts, getProductById, updateProduct, compareProduct, searchProducts };
+async function getCategories(req, res) {
+  const categories = await ProductModel.getCategories();
+  res.json(categories);
+}
+
+module.exports = { getProducts, getProductById, updateProduct, compareProduct, searchProducts, getCategories };
