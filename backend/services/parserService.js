@@ -88,7 +88,7 @@ function parseLine(line) {
 
   if (qtyMatch) {
     const rawQty = qtyMatch[1] || qtyMatch[2] || qtyMatch[3] || qtyMatch[4];
-    quantity = parseInt(rawQty, 10);
+    quantity = parseInt(rawQty, 10) || 1;
   }
 
   // Clean product name — remove weight/volume/qty annotations
