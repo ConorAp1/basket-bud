@@ -6,9 +6,16 @@ const PriceRecordModel = require('../models/PriceRecord');
 const ShopModel = require('../models/Shop');
 const logger = require('../utils/logger');
 
-// Map Claude's { name, price, quantity, unit } to the format normaliseItems expects.
+// Map Claude's response to the format normaliseItems expects.
+// Claude sometimes returns different field names despite the prompt, so we
+// fall back through common alternatives before defaulting.
 function mapClaudeItem(item) {
-  const u = (item.unit || 'each').toLowerCase().trim();
+  const rawName =
+    item.name ?? item.item_name ?? item.product_name ?? item.description ?? item.item ?? '';
+  const rawPrice =
+    item.price ?? item.unit_price ?? item.total_price ?? item.amount ?? item.cost ?? 0;
+  const quantity = item.quantity ?? item.qty ?? item.count ?? 1;
+  const u = (item.unit ?? item.unit_type ?? item.measure ?? 'each').toLowerCase().trim();
 
   let weightGrams = null;
   let volumeMl = null;
@@ -41,13 +48,13 @@ function mapClaudeItem(item) {
   }
 
   return {
-    rawName: item.name,
-    rawPrice: item.price,
-    quantity: item.quantity || 1,
+    rawName,
+    rawPrice,
+    quantity,
     weightGrams,
     volumeMl,
     unitType,
-    suggestedCategory: suggestCategory(item.name),
+    suggestedCategory: suggestCategory(rawName),
     uncertain: false,
   };
 }
