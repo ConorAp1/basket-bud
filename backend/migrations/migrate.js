@@ -4,13 +4,23 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'basketbud_db',
-  user: process.env.DB_USER || 'basketbud',
-  password: process.env.DB_PASSWORD || '',
-});
+const dbUrl = process.env.DATABASE_URL;
+const isRemoteRailway = dbUrl && (dbUrl.includes('railway.app') || dbUrl.includes('rlwy.net'));
+
+const poolConfig = dbUrl
+  ? {
+      connectionString: dbUrl,
+      ssl: isRemoteRailway ? { rejectUnauthorized: false } : false,
+    }
+  : {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'basketbud_db',
+      user: process.env.DB_USER || 'basketbud',
+      password: process.env.DB_PASSWORD || '',
+    };
+
+const pool = new Pool(poolConfig);
 
 async function migrate() {
   const migrationDir = __dirname;
@@ -24,7 +34,13 @@ async function migrate() {
   for (const file of files) {
     const sql = fs.readFileSync(path.join(migrationDir, file), 'utf8');
     console.log(`  → ${file}`);
-    await pool.query(sql);
+    try {
+      await pool.query(sql);
+    } catch (err) {
+      console.error(`  ✗ ${file} failed: ${err.message}`);
+      await pool.end();
+      process.exit(1);
+    }
   }
 
   console.log('Migrations complete.');
