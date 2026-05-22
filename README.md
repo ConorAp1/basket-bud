@@ -12,14 +12,23 @@ Most shoppers visit several different supermarkets but have no reliable way to c
 
 ---
 
+## Live
+
+| | |
+|---|---|
+| **Web app** | https://basket-bud-theta.vercel.app |
+| **API** | https://basket-bud-production.up.railway.app |
+
+---
+
 ## Features (MVP)
 
 | Feature | Description |
 |---|---|
-| 📸 Receipt Scanning | Photograph a receipt and extract all products, quantities, and prices automatically using Tesseract.js OCR |
-| 🏷️ Product Categorisation | Tag products by type (dairy, produce, bakery, etc.) for grouped analysis |
+| 📸 Receipt Scanning | Upload a receipt photo — Claude Vision extracts all products, prices, and the shop name automatically |
+| 🏷️ Product Categorisation | Items are auto-categorised (dairy, produce, bakery, etc.) and editable before saving |
 | ⚖️ Price Normalisation | Compare costs fairly using price-per-unit and price-per-100g/ml calculations |
-| 🏪 Multi-Shop Comparison | See side-by-side price histories for the same product across different stores |
+| 🏪 Multi-Shop Comparison | Side-by-side price history for any product across every shop you've scanned |
 | 📊 Analytics Dashboard | Visual breakdowns of spend by shop, category, and product over time |
 
 ---
@@ -28,14 +37,12 @@ Most shoppers visit several different supermarkets but have no reliable way to c
 
 | Layer | Technology |
 |---|---|
-| Frontend | React Native |
-| Backend | Node.js + Express |
-| Database | PostgreSQL |
-| OCR Engine | Tesseract.js |
-| Data Visualisation | Recharts |
-| Hosting | Self-hosted on home server |
-
-No paid APIs. No subscriptions. Everything runs on your own hardware.
+| Web Frontend | Next.js 15 (App Router), deployed on Vercel |
+| Mobile Frontend | React Native (Expo) |
+| Backend | Node.js + Express, deployed on Railway |
+| Database | PostgreSQL (Railway managed) |
+| OCR Engine | Claude Vision (Anthropic API) |
+| Data Visualisation | Recharts (web) / react-native-svg (mobile) |
 
 ---
 
@@ -74,76 +81,52 @@ basket-bud/
 
 ---
 
-## Getting Started
+## Getting Started (Local Dev)
 
 ### Prerequisites
 
 - Node.js 18+
-- Docker (for PostgreSQL) or a local PostgreSQL 15+ installation
-- Expo Go app on your phone, or an Android/iOS emulator
+- PostgreSQL 15+ (or use `docker compose up -d`)
+- Anthropic API key (for receipt scanning)
 
-### 1. Clone the Repository
+### 1. Clone and configure
 
 ```bash
 git clone https://github.com/ConorAp1/basket-bud.git
 cd basket-bud
-```
-
-### 2. Configure Environment Variables
-
-```bash
-# Copy the example and fill in your values
 cp .env.example backend/.env
-# Key values to set: DB_HOST, DB_NAME, DB_USER, DB_PASSWORD
+# Set: DATABASE_URL, ANTHROPIC_API_KEY, PORT=3001, FRONTEND_URL=http://localhost:3000
 ```
 
-### 3. Start the Database
+### 2. Database setup
 
 ```bash
-docker compose up -d
-```
-
-### 4. Install Dependencies and Download OCR Data
-
-```bash
-cd backend
-npm install
-npm run setup:tessdata   # downloads eng.traineddata (~5MB) for offline OCR
+docker compose up -d   # or use an existing PostgreSQL instance
+cd backend && npm install
 node migrations/migrate.js
 ```
 
-This creates the `shops`, `products`, `receipts`, and `price_records` tables and seeds common UK supermarkets.
-
-### 5. Start the Backend
+### 3. Start backend
 
 ```bash
-cd backend
-npm run dev
-# API available at http://localhost:3001
-# Health check: GET http://localhost:3001/health
+npm run dev   # http://localhost:3001
 ```
 
-### 6. Start the Frontend
+### 4. Start web frontend
 
 ```bash
-cd frontend
+cd ../frontend-web
 npm install
-npx expo start
-# Scan the QR code with Expo Go, or press 'a' for Android emulator
+# Create frontend-web/.env.local with: NEXT_PUBLIC_API_URL=http://localhost:3001/api
+npm run dev   # http://localhost:3000
 ```
 
-Set `EXPO_PUBLIC_API_BASE_URL` in your environment (or `frontend/.env`) to your backend address — use your machine's local network IP (e.g. `http://192.168.1.x:3001/api`) when running on a real phone.
-
-### Self-Hosting on a Home Server
-
-A `docker-compose.yml` is provided to run PostgreSQL. The backend runs as a Node.js process managed by PM2:
+### 5. Mobile frontend (optional)
 
 ```bash
-npm install -g pm2
-cd backend && pm2 start server.js --name basket-bud-api
+cd ../frontend && npm install && npx expo start
+# Set EXPO_PUBLIC_API_BASE_URL to your backend address
 ```
-
-Ensure your home server's local IP is set as `EXPO_PUBLIC_API_BASE_URL` in the frontend config.
 
 ---
 

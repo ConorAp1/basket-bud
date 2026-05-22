@@ -4,6 +4,53 @@ This file tracks what has been built, fixed, and the current state of the applic
 
 ---
 
+## Session: 2026-05-22 (Deployment Fixes + MVP Completion)
+
+### Deployment Target
+
+| Layer | Service | URL |
+|---|---|---|
+| Backend | Railway | https://basket-bud-production.up.railway.app |
+| Database | Railway PostgreSQL (internal) | postgres.railway.internal:5432 |
+| Web Frontend | Vercel | https://basket-bud-theta.vercel.app |
+
+### What Was Built
+
+| File | Change |
+|---|---|
+| `frontend-web/` | Next.js 15 App Router web frontend (4 pages: receipts, scan, compare, dashboard) |
+| `frontend-web/lib/api.ts` | Typed API client for all backend endpoints |
+| `frontend-web/app/scan/page.tsx` | Full scan + review + save flow with editable items table |
+| `frontend-web/app/compare/page.tsx` | Product search + price comparison table |
+| `frontend-web/app/dashboard/page.tsx` | Analytics charts using Recharts |
+| `frontend-web/app/receipts/[id]/page.tsx` | Receipt detail page with line items |
+
+### Bugs Fixed (Deployment Session)
+
+| Bug | Root Cause | Fix |
+|---|---|---|
+| Backend connecting to localhost despite DATABASE_URL set | `config/db.js` used `DB_HOST/PORT/NAME` vars, never read `DATABASE_URL` | Rewrote pool config to use `connectionString` when `DATABASE_URL` present |
+| SSL error on Railway PostgreSQL | SSL check only matched `rlwy.net`/`railway.app`, missed `postgres.railway.internal` | Changed check to `dbUrl.includes('railway')` |
+| Migration failing silently | Same localhost fallback bug in `migrations/migrate.js` + no per-file error reporting | Same fix + per-file try/catch with error output |
+| Scan page showing "Product name" / £0 | Frontend mapped `item.name`/`item.price`; backend returns `rawName`/`rawPrice` | Added camelCase fallbacks to mapping: `rawName ?? name ?? raw_name` |
+| POST /api/receipts/confirm → 404 | Backend route is `POST /api/receipts` (not `/confirm`) | Fixed `confirmReceipt` URL in `api.ts` |
+| Quantity showing 380/125 (weight in grams) | Claude Vision put weight amount in `quantity` field | Clamped frontend quantity to integers 1–99, defaulting to 1 |
+| Receipt total shows £0.00 | Frontend never sent `totalAmount`; backend saved null | Backend now calculates total from `sum(rawPrice × quantity)` on confirm |
+| Claude response wrapped in markdown fences | Anchored regex `^```$` only stripped fences at exact start/end | Global `/g` replace strips fences wherever they appear |
+| Scan items blank despite correct backend data | Claude sometimes returns `description`/`unit_price` etc. | `mapClaudeItem` now falls back through 5+ common field name variants |
+| Shop name not pre-selected after scan | Backend never extracted shop; frontend never received it | Updated Claude prompt to return `{ shop, items }` object; backend parses and returns `detectedShop`; frontend pre-selects it |
+
+### Features Added (Deployment Session)
+
+| Feature | Details |
+|---|---|
+| Shop detection from receipt | Claude Vision system prompt updated to extract shop name alongside items |
+| Unit column in scan review | `formatUnit()` helper displays `400g`, `1L`, `each` etc. from `weightGrams`/`volumeMl`/`unitType` |
+| Receipt total auto-calculation | `confirmReceipt` sums `rawPrice × quantity` for all items |
+| DATABASE_URL startup diagnostics | `config/db.js` logs connection target at boot for Railway debugging |
+
+---
+
 ## Session: 2026-05-17 → 2026-05-21 (Initial Build + Hardening)
 
 ### What Was Built (Sprint 1–4 complete)
