@@ -44,7 +44,7 @@ async function extractText(imagePath) {
 
   let items;
   try {
-    const cleaned = rawText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+    const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     items = JSON.parse(cleaned);
     if (!Array.isArray(items)) throw new Error('Response is not a JSON array');
   } catch (err) {
