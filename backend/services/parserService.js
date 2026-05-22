@@ -1,4 +1,6 @@
-// Drinks is checked before Produce so "orange juice" → Drinks, not Produce.
+// Ordering matters: first match wins.
+// - Drinks before Produce: "orange juice" → Drinks, not Produce
+// - Household before Bakery: "toilet roll" → Household, not Bakery ("roll")
 const CATEGORY_KEYWORDS = {
   Dairy:     ['milk', 'cheese', 'butter', 'cream', 'yoghurt', 'yogurt', 'cheddar',
                'mozzarella', 'brie', 'feta', 'stilton', 'halloumi', 'skimmed',
@@ -11,6 +13,10 @@ const CATEGORY_KEYWORDS = {
                'mushroom', 'avocado', 'lemon', 'lime', 'grape', 'strawberr',
                'raspberr', 'blueberr', 'mango', 'pineapple', 'kiwi', 'melon',
                'courgette', 'aubergine', 'celery', 'parsnip', 'leek', 'asparagus'],
+  Household: ['toilet roll', 'toilet paper', 'kitchen roll', 'kitchen towel',
+               'tissue', 'washing', 'detergent', 'soap', 'shampoo', 'conditioner',
+               'bin bag', 'foil', 'cling film', 'bleach', 'spray', 'sponge',
+               'dishwasher', 'fabric'],
   Bakery:    ['bread', 'roll', 'bun', 'loaf', 'bagel', 'croissant', 'muffin',
                'cake', 'biscuit', 'scone', 'pastry', 'sourdough', 'wrap', 'pitta',
                'crumpet', 'waffle', 'ciabatta', 'focaccia', 'brownie', 'doughnut'],
@@ -25,9 +31,6 @@ const CATEGORY_KEYWORDS = {
   Snacks:    ['crisps', 'nuts', 'chocolate', 'sweets', 'candy', 'popcorn',
                'pretzel', 'protein bar', 'cereal bar', 'flapjack', 'pringles',
                'doritos', 'raisins', 'trail mix'],
-  Household: ['washing', 'detergent', 'soap', 'shampoo', 'conditioner',
-               'toilet paper', 'tissue', 'kitchen roll', 'bin bag', 'foil',
-               'cling film', 'bleach', 'spray', 'sponge', 'dishwasher', 'fabric'],
 };
 
 function suggestCategory(name) {
