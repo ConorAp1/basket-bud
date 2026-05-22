@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS shops (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  location VARCHAR(200),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shops_name ON shops(name);

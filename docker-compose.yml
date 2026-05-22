@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: basket-bud-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-basketbud_db}
+      POSTGRES_USER: ${DB_USER:-basketbud}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-basketbud_dev_password}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-basketbud} -d ${DB_NAME:-basketbud_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
