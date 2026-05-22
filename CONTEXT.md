@@ -1,6 +1,12 @@
 # Basket-Bud – Current State
 
-**Status: Ship-ready (pending PostgreSQL + Anthropic API key setup on target host)**
+**Status: Deployed**
+
+| Layer | URL |
+|---|---|
+| Frontend (Vercel) | https://frontend-web-nu-smoky.vercel.app |
+| Backend (Railway) | set in Railway dashboard |
+| Database | Railway PostgreSQL (internal) |
 
 Last updated: 2026-05-22
 
