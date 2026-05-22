@@ -4,13 +4,20 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'basketbud_db',
-  user: process.env.DB_USER || 'basketbud',
-  password: process.env.DB_PASSWORD || '',
-});
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL.includes('railway') ? { rejectUnauthorized: false } : false,
+    }
+  : {
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'basketbud_db',
+      user: process.env.DB_USER || 'basketbud',
+      password: process.env.DB_PASSWORD || '',
+    };
+
+const pool = new Pool(poolConfig);
 
 async function migrate() {
   const migrationDir = __dirname;
