@@ -77,7 +77,7 @@ export default function ScanPage() {
       const mapped: EditableItem[] = (result.items ?? []).map((item: ReceiptItem) => ({
         rawName: item.rawName ?? item.name ?? item.raw_name ?? '',
         rawPrice: item.rawPrice ?? item.price ?? item.raw_price ?? 0,
-        quantity: item.quantity ?? 1,
+        quantity: (item.quantity != null && item.quantity >= 1 && item.quantity <= 99) ? Math.round(item.quantity) : 1,
         unitType: item.unitType ?? item.unit_type ?? 'per_item',
         suggestedCategory: (item.suggestedCategory ?? item.category ?? '') as Category | '',
       }));
