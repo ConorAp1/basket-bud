@@ -11,12 +11,15 @@ export interface Shop {
 
 export interface ReceiptItem {
   id?: number;
-  name: string;
+  name?: string;
+  rawName?: string;
   raw_name?: string;
-  price: number;
+  price?: number;
+  rawPrice?: number;
   raw_price?: number;
   quantity: number;
-  unit_type: string;
+  unitType?: string;
+  unit_type?: string;
   normalised_price_per_unit?: number;
   category?: string;
   suggestedCategory?: string;
