@@ -100,6 +100,64 @@ The entire application was built from scratch — the repo contained only docume
 | Joi input validation | middleware/validate.js wired to POST /receipts and PUT /products/:id |
 | Dynamic category API | GET /api/products/categories |
 | NaN-safe qty parsing | parserService.js |
+| Claude Vision OCR | Replaced Tesseract.js with Anthropic SDK claude-sonnet-4-5 vision |
+
+---
+
+## Claude Vision OCR — Architecture (2026-05-22)
+
+Tesseract.js was replaced with Claude Vision. The new pipeline:
+
+```
+image upload → ocrService.extractText()
+             → Anthropic SDK (claude-sonnet-4-5, vision, base64)
+             → JSON array: [{ name, price, quantity, unit }, ...]
+             → mapClaudeItem() in receiptController.js
+             → { rawName, rawPrice, quantity, weightGrams, volumeMl, unitType }
+             → normaliseItems() → { normalisedPrice, unitType }
+             → POST /api/receipts/scan response
+```
+
+### mapClaudeItem — unit format expectations
+
+Claude returns `unit` as a string. mapClaudeItem handles these forms:
+
+| Claude unit value | weightGrams | volumeMl | unitType |
+|---|---|---|---|
+| `"500g"` | 500 | — | per_100g |
+| `"1.5kg"` | 1500 | — | per_100g |
+| `"g"` (bare) | null | — | per_100g |
+| `"kg"` (bare) | null | — | per_kg (rawPrice treated as £/kg) |
+| `"750ml"` | — | 750 | per_100ml |
+| `"2l"` / `"2L"` | — | 2000 | per_100ml |
+| `"l"` / `"litre"` | — | null | per_litre (rawPrice treated as £/L) |
+| `"ml"` (bare) | — | null | per_100ml |
+| `"each"` or other | null | null | per_item |
+
+When `unit` is quantified (e.g. `"400g"`), the quantity is parsed out and used as the
+reference weight/volume so normaliseItems can compute the correct per-100g/per-100ml price.
+
+### Pipeline Verified (fixture test, 2026-05-22)
+
+10-item Tesco receipt fixture processed through the full pipeline:
+
+| Item | unitType | normalisedPrice |
+|---|---|---|
+| Whole Milk 2L | per_100ml | £0.0825/100ml |
+| Mature Cheddar 400g | per_100g | £0.8750/100g |
+| Sourdough Bread 800g | per_100g | £0.2625/100g |
+| Free Range Eggs (x6) | per_item | £0.3750/item |
+| Chicken Breast 500g | per_100g | £0.9980/100g |
+| Greek Yoghurt 500g | per_100g | £0.3500/100g |
+| Sparkling Water 1L | per_100ml | £0.0650/100ml |
+
+All unit conversions and normalised prices verified correct.
+
+### Known limitation: Toilet Rolls category bug (pre-existing)
+
+`suggestCategory("Toilet Rolls x9")` returns **Bakery** because "roll" appears in
+CATEGORY_KEYWORDS.Bakery before "toilet paper" is checked in Household. Fix: add
+"toilet roll" to Household keywords and/or check longer phrases before shorter substrings.
 
 ---
 
@@ -107,6 +165,6 @@ The entire application was built from scratch — the repo contained only docume
 
 - No automated test suite. Logic has been verified by direct node invocation.
 - PostgreSQL must be running and migrated before any DB-dependent endpoints work.
-- eng.traineddata.gz must be downloaded via `npm run setup:tessdata` before scanning.
+- `ANTHROPIC_API_KEY` must be set in `.env` — the scan endpoint fails with auth error if missing.
 - React Native camera/OCR flow can only be fully tested on a physical device or simulator.
 - Recharts (browser-only) is NOT used; SVG charts use react-native-svg instead.
