@@ -23,7 +23,23 @@ interface EditableItem {
   rawPrice: number;
   quantity: number;
   unitType: string;
+  weightGrams?: number | null;
+  volumeMl?: number | null;
   suggestedCategory: Category | '';
+}
+
+function formatUnit(unitType: string, weightGrams?: number | null, volumeMl?: number | null): string {
+  if (weightGrams && weightGrams > 0) {
+    return weightGrams >= 1000 ? `${weightGrams / 1000}kg` : `${weightGrams}g`;
+  }
+  if (volumeMl && volumeMl > 0) {
+    return volumeMl >= 1000 ? `${volumeMl / 1000}L` : `${volumeMl}ml`;
+  }
+  if (unitType === 'per_kg') return 'per kg';
+  if (unitType === 'per_litre') return 'per L';
+  if (unitType === 'per_100g') return 'per 100g';
+  if (unitType === 'per_100ml') return 'per 100ml';
+  return 'each';
 }
 
 function blankItem(): EditableItem {
@@ -74,11 +90,16 @@ export default function ScanPage() {
       const formData = new FormData();
       formData.append('receipt', file);
       const result = await scanReceipt(formData);
+      if (result.detectedShop) {
+        setSelectedShop(result.detectedShop);
+      }
       const mapped: EditableItem[] = (result.items ?? []).map((item: ReceiptItem) => ({
         rawName: item.rawName ?? item.name ?? item.raw_name ?? '',
         rawPrice: item.rawPrice ?? item.price ?? item.raw_price ?? 0,
         quantity: (item.quantity != null && item.quantity >= 1 && item.quantity <= 99) ? Math.round(item.quantity) : 1,
         unitType: item.unitType ?? item.unit_type ?? 'per_item',
+        weightGrams: item.weightGrams ?? null,
+        volumeMl: item.volumeMl ?? null,
         suggestedCategory: (item.suggestedCategory ?? item.category ?? '') as Category | '',
       }));
       setItems(mapped.length > 0 ? mapped : [blankItem()]);
@@ -215,6 +236,7 @@ export default function ScanPage() {
                 <tr className="bg-gray-50 text-left">
                   <th className="px-4 py-3 font-medium text-gray-500">Name</th>
                   <th className="px-4 py-3 font-medium text-gray-500">Price (£)</th>
+                  <th className="px-4 py-3 font-medium text-gray-500">Unit</th>
                   <th className="px-4 py-3 font-medium text-gray-500">Category</th>
                   <th className="px-4 py-3 font-medium text-gray-500">Qty</th>
                   <th className="px-4 py-3 font-medium text-gray-500"></th>
@@ -241,6 +263,11 @@ export default function ScanPage() {
                         onChange={(e) => updateItem(idx, 'rawPrice', parseFloat(e.target.value) || 0)}
                         className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                       />
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="text-xs text-gray-500 bg-gray-100 rounded px-2 py-1 whitespace-nowrap">
+                        {formatUnit(item.unitType, item.weightGrams, item.volumeMl)}
+                      </span>
                     </td>
                     <td className="px-4 py-2">
                       <select

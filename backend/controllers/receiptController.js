@@ -64,7 +64,7 @@ async function scanReceipt(req, res) {
     return res.status(400).json({ error: 'No receipt image provided' });
   }
 
-  const { items: claudeItems, confidence, rawText } = await extractText(req.file.path);
+  const { items: claudeItems, detectedShop, confidence, rawText } = await extractText(req.file.path);
   const mappedItems = claudeItems.map(mapClaudeItem);
   const normalisedItems = normaliseItems(mappedItems);
 
@@ -73,21 +73,27 @@ async function scanReceipt(req, res) {
     imagePath: req.file.path,
     rawText,
     confidence,
+    detectedShop,
     items: normalisedItems,
   });
 }
 
 async function confirmReceipt(req, res) {
-  const { shopName, shopLocation, scannedAt, items, totalAmount } = req.body;
+  const { shopName, shopLocation, scannedAt, items } = req.body;
 
   const shop = shopName ? await ShopModel.findOrCreate({ name: shopName, location: shopLocation }) : null;
+
+  const calculatedTotal = items.reduce(
+    (sum, item) => sum + (parseFloat(item.rawPrice) || 0) * (parseFloat(item.quantity) || 1),
+    0
+  );
 
   const receipt = await ReceiptModel.create({
     shopId: shop ? shop.id : null,
     scannedAt: scannedAt || new Date(),
     imagePath: req.body.imagePath || 'manual',
     rawOcrText: req.body.rawText || null,
-    totalAmount: totalAmount || null,
+    totalAmount: parseFloat(calculatedTotal.toFixed(2)),
   });
 
   const priceRecords = items.map((item) => ({

@@ -20,7 +20,10 @@ export interface ReceiptItem {
   quantity: number;
   unitType?: string;
   unit_type?: string;
+  weightGrams?: number;
+  volumeMl?: number;
   normalised_price_per_unit?: number;
+  normalisedPrice?: number;
   category?: string;
   suggestedCategory?: string;
 }
@@ -81,6 +84,7 @@ export interface TopProduct {
 
 export interface ScanResult {
   items: ReceiptItem[];
+  detectedShop?: string | null;
   raw_text?: string;
 }
 
