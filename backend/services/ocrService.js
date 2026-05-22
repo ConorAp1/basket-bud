@@ -39,6 +39,7 @@ async function extractText(imagePath) {
   });
 
   const rawText = response.content[0].text;
+  console.log('[ocrService] Claude Vision raw response:', rawText);
   logger.info('Claude Vision raw response', { rawText });
 
   let items;
