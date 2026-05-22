@@ -151,7 +151,7 @@ export async function scanReceipt(formData: FormData): Promise<ScanResult> {
 }
 
 export async function confirmReceipt(payload: ConfirmPayload): Promise<Receipt> {
-  return post<Receipt>('/receipts/confirm', payload);
+  return post<Receipt>('/receipts', payload);
 }
 
 export async function getShops(): Promise<Shop[]> {
