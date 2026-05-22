@@ -1,50 +1,59 @@
-const Tesseract = require('tesseract.js');
+const Anthropic = require('@anthropic-ai/sdk');
+const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 
-// Use locally bundled trained data to avoid CDN dependency at runtime.
-// Falls back to Tesseract's default (CDN download) if the local file is missing.
-const LOCAL_LANG_PATH = path.join(__dirname, '..', 'tessdata');
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const SYSTEM_PROMPT =
+  'You are a receipt parser. Extract all line items from this receipt image. ' +
+  'Return ONLY a JSON array where each item has: name (string), price (number in GBP), ' +
+  'quantity (number), unit (string e.g. kg/g/L/ml/each). ' +
+  'Skip totals, subtotals, discounts, VAT lines, and loyalty card savings. ' +
+  'Return raw JSON only, no markdown.';
 
 async function extractText(imagePath) {
-  logger.info('Starting OCR extraction', { imagePath });
+  logger.info('Starting Claude Vision OCR', { imagePath });
 
-  let worker;
-  try {
-    worker = await Tesseract.createWorker('eng', 1, {
-      langPath: LOCAL_LANG_PATH,
-      logger: (m) => {
-        if (process.env.NODE_ENV === 'development' && m.status === 'recognizing text') {
-          logger.debug('OCR progress', { progress: Math.round(m.progress * 100) });
-        }
+  const imageBuffer = fs.readFileSync(imagePath);
+  const base64Image = imageBuffer.toString('base64');
+  const ext = path.extname(imagePath).toLowerCase().replace('.', '');
+  const mediaType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 1024,
+    system: SYSTEM_PROMPT,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: mediaType, data: base64Image },
+          },
+          { type: 'text', text: 'Extract all line items from this receipt.' },
+        ],
       },
-    });
+    ],
+  });
 
-    const { data } = await worker.recognize(imagePath);
+  const rawText = response.content[0].text;
+  logger.info('Claude Vision raw response', { rawText });
 
-    logger.info('OCR extraction complete', { confidence: Math.round(data.confidence) });
-
-    return {
-      text: data.text,
-      confidence: data.confidence,
-      words: data.words.map((w) => ({
-        text: w.text,
-        confidence: w.confidence,
-        bbox: w.bbox,
-      })),
-      lines: data.lines.map((l) => ({
-        text: l.text,
-        confidence: l.confidence,
-      })),
-    };
+  let items;
+  try {
+    const cleaned = rawText.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+    items = JSON.parse(cleaned);
+    if (!Array.isArray(items)) throw new Error('Response is not a JSON array');
   } catch (err) {
-    logger.error('OCR extraction failed', { imagePath, error: err.message });
-    throw new Error(`OCR processing failed: ${err.message}`);
-  } finally {
-    if (worker) {
-      await worker.terminate().catch(() => {});
-    }
+    logger.error('Failed to parse Claude Vision response as JSON', { rawText, error: err.message });
+    throw new Error(`Claude Vision returned unparseable response: ${err.message}`);
   }
+
+  logger.info('Claude Vision OCR complete', { itemCount: items.length });
+
+  return { items, confidence: 95, rawText };
 }
 
 module.exports = { extractText };

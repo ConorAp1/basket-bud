@@ -1,25 +1,71 @@
 const { extractText } = require('../services/ocrService');
-const { parseReceiptText } = require('../services/parserService');
+const { suggestCategory } = require('../services/parserService');
 const { normaliseItems } = require('../services/normalisationService');
 const ReceiptModel = require('../models/Receipt');
 const PriceRecordModel = require('../models/PriceRecord');
 const ShopModel = require('../models/Shop');
 const logger = require('../utils/logger');
 
+// Map Claude's { name, price, quantity, unit } to the format normaliseItems expects.
+function mapClaudeItem(item) {
+  const u = (item.unit || 'each').toLowerCase().trim();
+
+  let weightGrams = null;
+  let volumeMl = null;
+  let unitType = 'per_item';
+
+  const weightMatch = u.match(/^(\d+(?:\.\d+)?)\s*(kg|g)$/);
+  if (weightMatch) {
+    const [, amount, unitPart] = weightMatch;
+    weightGrams = unitPart === 'kg'
+      ? Math.round(parseFloat(amount) * 1000)
+      : parseInt(amount, 10);
+    unitType = 'per_100g';
+  } else if (u === 'kg') {
+    unitType = 'per_kg';
+  } else if (u === 'g') {
+    unitType = 'per_100g';
+  } else {
+    const volumeMatch = u.match(/^(\d+(?:\.\d+)?)\s*(l|ml)$/);
+    if (volumeMatch) {
+      const [, amount, unitPart] = volumeMatch;
+      volumeMl = unitPart === 'l'
+        ? Math.round(parseFloat(amount) * 1000)
+        : parseInt(amount, 10);
+      unitType = 'per_100ml';
+    } else if (u === 'l' || u === 'litre' || u === 'liter') {
+      unitType = 'per_litre';
+    } else if (u === 'ml') {
+      unitType = 'per_100ml';
+    }
+  }
+
+  return {
+    rawName: item.name,
+    rawPrice: item.price,
+    quantity: item.quantity || 1,
+    weightGrams,
+    volumeMl,
+    unitType,
+    suggestedCategory: suggestCategory(item.name),
+    uncertain: false,
+  };
+}
+
 async function scanReceipt(req, res) {
   if (!req.file) {
     return res.status(400).json({ error: 'No receipt image provided' });
   }
 
-  const { text, confidence, lines } = await extractText(req.file.path);
-  const parsedItems = parseReceiptText(text);
-  const normalisedItems = normaliseItems(parsedItems);
+  const { items: claudeItems, confidence, rawText } = await extractText(req.file.path);
+  const mappedItems = claudeItems.map(mapClaudeItem);
+  const normalisedItems = normaliseItems(mappedItems);
 
   res.json({
     receiptId: null,
     imagePath: req.file.path,
-    rawText: text,
-    confidence: Math.round(confidence),
+    rawText,
+    confidence,
     items: normalisedItems,
   });
 }
