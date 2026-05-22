@@ -4,6 +4,9 @@ require('dotenv').config();
 const dbUrl = process.env.DATABASE_URL;
 const isRemoteRailway = dbUrl && (dbUrl.includes('railway.app') || dbUrl.includes('rlwy.net'));
 
+console.log('[db] DATABASE_URL present:', !!dbUrl);
+console.log('[db] Connection target:', dbUrl ? dbUrl.split('@')[1] : 'localhost (fallback)');
+
 const pool = new Pool(
   dbUrl
     ? {
