@@ -3,7 +3,7 @@ const Joi = require('joi');
 const itemSchema = Joi.object({
   rawName:           Joi.string().trim().min(1).required(),
   rawPrice:          Joi.number().positive().required(),
-  quantity:          Joi.number().integer().min(1).optional(),
+  quantity:          Joi.number().positive().optional(),
   weightGrams:       Joi.number().positive().optional().allow(null),
   volumeMl:          Joi.number().positive().optional().allow(null),
   unitType:          Joi.string().optional().allow('', null),
