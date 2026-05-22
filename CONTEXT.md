@@ -1,8 +1,8 @@
 # Basket-Bud – Current State
 
-**Status: Ship-ready (pending PostgreSQL + tessdata setup on target host)**
+**Status: Ship-ready (pending PostgreSQL + Anthropic API key setup on target host)**
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 ---
 
@@ -10,7 +10,7 @@ Last updated: 2026-05-21
 
 All MVP features from the PRD are implemented and verified:
 
-1. **Receipt photo scanning** — Camera capture in React Native, image POST to backend, Tesseract.js OCR, structured line item extraction.
+1. **Receipt photo scanning** — Camera capture in React Native, image POST to backend, Claude Vision OCR, structured line item extraction.
 2. **Data extraction & user review** — Parser returns items with name, price, weight/volume, unit type, and suggested category. User edits inline before saving.
 3. **Category suggestion** — 9-category keyword dictionary in parserService assigns a category to each scanned item; user can override via tap-to-pick UI.
 4. **Price normalisation** — All prices normalised to per_100g / per_100ml / per_item. Single source of truth in normalisationService.js.
@@ -28,24 +28,24 @@ All MVP features from the PRD are implemented and verified:
 # 1. Install backend dependencies
 cd backend && npm install
 
-# 2. Download OCR language data (one-time)
-npm run setup:tessdata
-
-# 3. Create DB, user, and run migrations
+# 2. Create DB, user, and run migrations
 createdb -U postgres basketbud_db
 psql -U postgres -c "CREATE USER basketbud WITH PASSWORD 'yourpassword';"
 psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE basketbud_db TO basketbud;"
 node migrations/migrate.js
 
-# 4. Create .env from template
-cp .env.example .env   # Fill in DATABASE_URL, PORT, etc.
+# 3. Create .env from template and fill in required values
+cp .env.example .env
+# Must set: DATABASE_URL, ANTHROPIC_API_KEY, PORT
 
-# 5. Start backend
+# 4. Start backend
 npm run dev
 
-# 6. In a separate terminal, start frontend
+# 5. In a separate terminal, start frontend
 cd ../frontend && npm install && npx expo start
 ```
+
+> **Note:** `ANTHROPIC_API_KEY` is required for receipt scanning. Obtain a key at console.anthropic.com. Without it the `/api/receipts/scan` endpoint returns a 500.
 
 ---
 
@@ -53,13 +53,13 @@ cd ../frontend && npm install && npx expo start
 
 | Decision | Reason |
 |---|---|
-| Tesseract.js on backend | Keeps mobile app lightweight; OCR is CPU-intensive |
+| Claude Vision on backend | Higher accuracy than Tesseract on real receipts; returns structured JSON directly — no regex parser needed |
 | No ORM — raw SQL | Full control, easier debugging, no abstraction overhead |
 | react-native-svg for charts | Recharts requires a browser DOM — unusable in React Native |
 | Zustand for state | Minimal boilerplate for a solo project |
 | Joi validation middleware | Centralised schema factory; not inline in controllers |
 | product_merges table | Separate join table allows n:m merge relationships without touching products table |
-| CATEGORY_KEYWORDS ordered | Drinks before Produce prevents "orange juice" → Produce |
+| CATEGORY_KEYWORDS ordered | Drinks before Produce ("orange juice"), Household before Bakery ("toilet roll") |
 
 ---
 
