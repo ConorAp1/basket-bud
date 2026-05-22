@@ -75,11 +75,11 @@ export default function ScanPage() {
       formData.append('receipt', file);
       const result = await scanReceipt(formData);
       const mapped: EditableItem[] = (result.items ?? []).map((item: ReceiptItem) => ({
-        rawName: item.name ?? item.raw_name ?? '',
-        rawPrice: item.price ?? item.raw_price ?? 0,
+        rawName: item.rawName ?? item.name ?? item.raw_name ?? '',
+        rawPrice: item.rawPrice ?? item.price ?? item.raw_price ?? 0,
         quantity: item.quantity ?? 1,
-        unitType: item.unit_type ?? 'per_item',
-        suggestedCategory: (item.category ?? item.suggestedCategory ?? '') as Category | '',
+        unitType: item.unitType ?? item.unit_type ?? 'per_item',
+        suggestedCategory: (item.suggestedCategory ?? item.category ?? '') as Category | '',
       }));
       setItems(mapped.length > 0 ? mapped : [blankItem()]);
     } catch (err: unknown) {
