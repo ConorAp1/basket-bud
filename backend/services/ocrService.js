@@ -14,14 +14,22 @@ try {
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+const CATEGORY_LIST =
+  'Dairy, Drinks, Produce, Bakery, Meat, Seafood, Frozen, Snacks, Household';
+
 const SYSTEM_PROMPT =
   'You are a receipt parser. Extract information from this receipt image. ' +
   'Return ONLY a JSON object with two fields: ' +
   '"shop" (string, the shop/store name from the receipt header, or null if not visible) and ' +
   '"items" (array of line items). ' +
-  'Each item must have: name (string), price (number in GBP), quantity (number), unit (string e.g. kg/g/L/ml/each). ' +
+  'Each item must have: name (string), price (number in GBP), quantity (number), ' +
+  'unit (string e.g. kg/g/L/ml/each), and ' +
+  `category (one of: ${CATEGORY_LIST}; use null if none clearly fits). ` +
+  'Receipt names are often abbreviated (e.g. "SMTSKSEMI" = semi-skimmed milk) — ' +
+  'expand them to a readable product name and infer the category from the real product. ' +
   'Skip totals, subtotals, discounts, VAT lines, and loyalty card savings. ' +
-  'Return raw JSON only, no markdown. Example: {"shop":"Tesco","items":[{"name":"Milk","price":1.09,"quantity":1,"unit":"each"}]}';
+  'Return raw JSON only, no markdown. ' +
+  'Example: {"shop":"Tesco","items":[{"name":"Semi-Skimmed Milk","price":1.09,"quantity":1,"unit":"each","category":"Dairy"}]}';
 
 function mediaTypeForPath(imagePath) {
   const ext = path.extname(imagePath).toLowerCase().replace('.', '');

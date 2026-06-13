@@ -43,6 +43,9 @@ export default function ScanReceiptScreen({ navigation }) {
       const data = await scanReceipt(result.assets[0].uri);
       setScanResult(data);
       setItems(data.items || []);
+      // Pre-fill the shop the backend detected from the receipt header so the
+      // user only has to confirm/correct it rather than retype it from scratch.
+      if (data.detectedShop) setShopName(data.detectedShop);
       setStep('reviewing');
     } catch (err) {
       Alert.alert('Scan failed', err.message);
