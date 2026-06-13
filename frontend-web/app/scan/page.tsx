@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getShops, scanReceipt, confirmReceipt, Shop, ReceiptItem } from '@/lib/api';
+import { getShops, scanReceipt, confirmReceipt, Shop, ScannedItem, MatchCandidate } from '@/lib/api';
 
 const CATEGORIES = [
   'Dairy',
@@ -22,12 +22,36 @@ interface EditableItem {
   rawName: string;
   rawPrice: number;
   quantity: number;
-  unitType: string;
+  size: string; // e.g. "500g", "2L" — parsed into weightGrams/volumeMl on save
   suggestedCategory: Category | '';
+  productId: number | null;
+  matchedProductName: string | null;
+  candidates: MatchCandidate[];
 }
 
 function blankItem(): EditableItem {
-  return { rawName: '', rawPrice: 0, quantity: 1, unitType: 'per_item', suggestedCategory: '' };
+  return {
+    rawName: '', rawPrice: 0, quantity: 1, size: '', suggestedCategory: '',
+    productId: null, matchedProductName: null, candidates: [],
+  };
+}
+
+function sizeLabel(weightGrams: number | null, volumeMl: number | null): string {
+  if (weightGrams) return weightGrams >= 1000 ? `${weightGrams / 1000}kg` : `${weightGrams}g`;
+  if (volumeMl) return volumeMl >= 1000 ? `${volumeMl / 1000}L` : `${volumeMl}ml`;
+  return '';
+}
+
+function parseSize(size: string): { weightGrams: number | null; volumeMl: number | null; unitType: string } {
+  const m = size.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(kg|g|l|ml)$/);
+  if (!m) return { weightGrams: null, volumeMl: null, unitType: 'per_item' };
+  const value = parseFloat(m[1]);
+  switch (m[2]) {
+    case 'kg': return { weightGrams: Math.round(value * 1000), volumeMl: null, unitType: 'per_100g' };
+    case 'g':  return { weightGrams: Math.round(value), volumeMl: null, unitType: 'per_100g' };
+    case 'l':  return { weightGrams: null, volumeMl: Math.round(value * 1000), unitType: 'per_100ml' };
+    default:   return { weightGrams: null, volumeMl: Math.round(value), unitType: 'per_100ml' };
+  }
 }
 
 function Spinner({ label }: { label?: string }) {
@@ -49,6 +73,12 @@ export default function ScanPage() {
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState<EditableItem[] | null>(null);
+  const [scanMeta, setScanMeta] = useState<{
+    receiptDate: string | null;
+    totalAmount: number | null;
+    imagePath?: string;
+    rawText?: string;
+  }>({ receiptDate: null, totalAmount: null });
   const [scanError, setScanError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -74,20 +104,39 @@ export default function ScanPage() {
       const formData = new FormData();
       formData.append('receipt', file);
       const result = await scanReceipt(formData);
-      const mapped: EditableItem[] = (result.items ?? []).map((item: ReceiptItem) => ({
-        rawName: item.name ?? item.raw_name ?? '',
-        rawPrice: item.price ?? item.raw_price ?? 0,
+      const mapped: EditableItem[] = (result.items ?? []).map((item: ScannedItem) => ({
+        rawName: item.rawName ?? '',
+        rawPrice: item.rawPrice ?? 0,
         quantity: item.quantity ?? 1,
-        unitType: item.unit_type ?? 'per_item',
-        suggestedCategory: (item.category ?? item.suggestedCategory ?? '') as Category | '',
+        size: sizeLabel(item.weightGrams, item.volumeMl),
+        suggestedCategory: (item.suggestedCategory ?? '') as Category | '',
+        productId: item.productId ?? null,
+        matchedProductName: item.matchedProductName ?? null,
+        candidates: item.candidates ?? [],
       }));
       setItems(mapped.length > 0 ? mapped : [blankItem()]);
+      if (result.shopName) setSelectedShop(result.shopName);
+      setScanMeta({
+        receiptDate: result.receiptDate ?? null,
+        totalAmount: result.totalAmount ?? null,
+        imagePath: result.imagePath,
+        rawText: result.rawText,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to scan receipt';
       setScanError(msg);
     } finally {
       setScanning(false);
     }
+  }
+
+  function setItemMatch(idx: number, productId: number | null, name: string | null) {
+    setItems((prev) => {
+      if (!prev) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], productId, matchedProductName: name };
+      return next;
+    });
   }
 
   function updateItem(idx: number, field: keyof EditableItem, value: string | number) {
@@ -114,14 +163,25 @@ export default function ScanPage() {
     try {
       await confirmReceipt({
         shopName: selectedShop,
-        items: items.map((it) => ({
-          rawName: it.rawName,
-          rawPrice: Number(it.rawPrice),
-          quantity: Number(it.quantity),
-          unitType: it.unitType,
-          suggestedCategory: it.suggestedCategory || 'Unknown',
-        })),
-        scannedAt: new Date().toISOString(),
+        items: items.map((it) => {
+          const { weightGrams, volumeMl, unitType } = parseSize(it.size);
+          return {
+            rawName: it.rawName,
+            rawPrice: Number(it.rawPrice),
+            quantity: Number(it.quantity),
+            weightGrams,
+            volumeMl,
+            unitType,
+            productId: it.productId,
+            suggestedCategory: it.suggestedCategory || 'Unknown',
+          };
+        }),
+        scannedAt: scanMeta.receiptDate
+          ? new Date(scanMeta.receiptDate).toISOString()
+          : new Date().toISOString(),
+        totalAmount: scanMeta.totalAmount,
+        imagePath: scanMeta.imagePath,
+        rawText: scanMeta.rawText,
       });
       router.push('/');
     } catch (err: unknown) {
@@ -201,6 +261,9 @@ export default function ScanPage() {
               onChange={(e) => setSelectedShop(e.target.value)}
             >
               <option value="Unknown">Unknown</option>
+              {selectedShop !== 'Unknown' && !shops.some((s) => s.name === selectedShop) && (
+                <option value={selectedShop}>{selectedShop} (detected)</option>
+              )}
               {shops.map((shop) => (
                 <option key={shop.id} value={shop.name}>
                   {shop.name}
@@ -215,8 +278,10 @@ export default function ScanPage() {
                 <tr className="bg-gray-50 text-left">
                   <th className="px-4 py-3 font-medium text-gray-500">Name</th>
                   <th className="px-4 py-3 font-medium text-gray-500">Price (£)</th>
+                  <th className="px-4 py-3 font-medium text-gray-500">Size</th>
                   <th className="px-4 py-3 font-medium text-gray-500">Category</th>
                   <th className="px-4 py-3 font-medium text-gray-500">Qty</th>
+                  <th className="px-4 py-3 font-medium text-gray-500">Match</th>
                   <th className="px-4 py-3 font-medium text-gray-500"></th>
                 </tr>
               </thead>
@@ -243,6 +308,15 @@ export default function ScanPage() {
                       />
                     </td>
                     <td className="px-4 py-2">
+                      <input
+                        type="text"
+                        value={item.size}
+                        onChange={(e) => updateItem(idx, 'size', e.target.value)}
+                        placeholder="e.g. 500g, 2L"
+                        className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
                       <select
                         value={item.suggestedCategory}
                         onChange={(e) => updateItem(idx, 'suggestedCategory', e.target.value)}
@@ -263,6 +337,35 @@ export default function ScanPage() {
                         onChange={(e) => updateItem(idx, 'quantity', parseInt(e.target.value, 10) || 1)}
                         className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
                       />
+                    </td>
+                    <td className="px-4 py-2">
+                      {item.matchedProductName ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full cursor-pointer"
+                          title="Linked to existing product — click to unlink"
+                          onClick={() => setItemMatch(idx, null, null)}
+                        >
+                          🔗 {item.matchedProductName}
+                        </span>
+                      ) : item.candidates.length > 0 ? (
+                        <select
+                          className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-400 max-w-[160px]"
+                          value=""
+                          onChange={(e) => {
+                            const cand = item.candidates.find((c) => c.id === Number(e.target.value));
+                            if (cand) setItemMatch(idx, cand.id, cand.name);
+                          }}
+                        >
+                          <option value="">New product</option>
+                          {item.candidates.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              Same as: {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gray-400">New product</span>
+                      )}
                     </td>
                     <td className="px-4 py-2">
                       <button

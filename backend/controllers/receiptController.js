@@ -1,6 +1,7 @@
 const { extractText } = require('../services/ocrService');
 const { suggestCategory } = require('../services/parserService');
-const { normaliseItems } = require('../services/normalisationService');
+const { normaliseItems, normalisePrice } = require('../services/normalisationService');
+const { matchLineItems, ensureProduct } = require('../services/matchingService');
 const ReceiptModel = require('../models/Receipt');
 const PriceRecordModel = require('../models/PriceRecord');
 const ShopModel = require('../models/Shop');
@@ -15,35 +16,55 @@ function mapClaudeItem(item) {
   const rawPrice =
     item.price ?? item.unit_price ?? item.total_price ?? item.amount ?? item.cost ?? 0;
   const quantity = item.quantity ?? item.qty ?? item.count ?? 1;
-  const u = (item.unit ?? item.unit_type ?? item.measure ?? 'each').toLowerCase().trim();
 
   let weightGrams = null;
   let volumeMl = null;
   let unitType = 'per_item';
 
-  const weightMatch = u.match(/^(\d+(?:\.\d+)?)\s*(kg|g)$/);
-  if (weightMatch) {
-    const [, amount, unitPart] = weightMatch;
-    weightGrams = unitPart === 'kg'
-      ? Math.round(parseFloat(amount) * 1000)
-      : parseInt(amount, 10);
-    unitType = 'per_100g';
-  } else if (u === 'kg') {
-    unitType = 'per_kg';
-  } else if (u === 'g') {
-    unitType = 'per_100g';
+  // Preferred path: structured size from the new OCR prompt.
+  const sizeValue = Number(item.size_value);
+  const sizeUnit = (item.size_unit || '').toLowerCase().trim();
+  if (sizeValue > 0 && sizeUnit) {
+    if (sizeUnit === 'kg') {
+      weightGrams = Math.round(sizeValue * 1000);
+      unitType = 'per_100g';
+    } else if (sizeUnit === 'g') {
+      weightGrams = Math.round(sizeValue);
+      unitType = 'per_100g';
+    } else if (sizeUnit === 'l' || sizeUnit === 'litre' || sizeUnit === 'liter') {
+      volumeMl = Math.round(sizeValue * 1000);
+      unitType = 'per_100ml';
+    } else if (sizeUnit === 'ml') {
+      volumeMl = Math.round(sizeValue);
+      unitType = 'per_100ml';
+    }
   } else {
-    const volumeMatch = u.match(/^(\d+(?:\.\d+)?)\s*(l|ml)$/);
-    if (volumeMatch) {
-      const [, amount, unitPart] = volumeMatch;
-      volumeMl = unitPart === 'l'
+    // Legacy path: size embedded in the unit string (e.g. "2kg", "500ml").
+    const u = (item.unit ?? item.unit_type ?? item.measure ?? 'each').toLowerCase().trim();
+    const weightMatch = u.match(/^(\d+(?:\.\d+)?)\s*(kg|g)$/);
+    if (weightMatch) {
+      const [, amount, unitPart] = weightMatch;
+      weightGrams = unitPart === 'kg'
         ? Math.round(parseFloat(amount) * 1000)
         : parseInt(amount, 10);
-      unitType = 'per_100ml';
-    } else if (u === 'l' || u === 'litre' || u === 'liter') {
-      unitType = 'per_litre';
-    } else if (u === 'ml') {
-      unitType = 'per_100ml';
+      unitType = 'per_100g';
+    } else if (u === 'kg') {
+      unitType = 'per_kg';
+    } else if (u === 'g') {
+      unitType = 'per_100g';
+    } else {
+      const volumeMatch = u.match(/^(\d+(?:\.\d+)?)\s*(l|ml)$/);
+      if (volumeMatch) {
+        const [, amount, unitPart] = volumeMatch;
+        volumeMl = unitPart === 'l'
+          ? Math.round(parseFloat(amount) * 1000)
+          : parseInt(amount, 10);
+        unitType = 'per_100ml';
+      } else if (u === 'l' || u === 'litre' || u === 'liter') {
+        unitType = 'per_litre';
+      } else if (u === 'ml') {
+        unitType = 'per_100ml';
+      }
     }
   }
 
@@ -64,23 +85,30 @@ async function scanReceipt(req, res) {
     return res.status(400).json({ error: 'No receipt image provided' });
   }
 
-  const { items: claudeItems, confidence, rawText } = await extractText(req.file.path);
+  const { items: claudeItems, shopName, receiptDate, totalAmount, confidence, rawText } =
+    await extractText(req.file.path);
   const mappedItems = claudeItems.map(mapClaudeItem);
   const normalisedItems = normaliseItems(mappedItems);
+  const matchedItems = await matchLineItems(normalisedItems);
 
   res.json({
     receiptId: null,
     imagePath: req.file.path,
     rawText,
     confidence,
-    items: normalisedItems,
+    shopName,
+    receiptDate,
+    totalAmount,
+    items: matchedItems,
   });
 }
 
 async function confirmReceipt(req, res) {
   const { shopName, shopLocation, scannedAt, items, totalAmount } = req.body;
 
-  const shop = shopName ? await ShopModel.findOrCreate({ name: shopName, location: shopLocation }) : null;
+  const shop = shopName && shopName !== 'Unknown'
+    ? await ShopModel.findOrCreate({ name: shopName, location: shopLocation })
+    : null;
 
   const receipt = await ReceiptModel.create({
     shopId: shop ? shop.id : null,
@@ -90,22 +118,42 @@ async function confirmReceipt(req, res) {
     totalAmount: totalAmount || null,
   });
 
-  const priceRecords = items.map((item) => ({
-    receiptId: receipt.id,
-    productId: item.productId || null,
-    shopId: shop ? shop.id : null,
-    rawName: item.rawName,
-    rawPrice: item.rawPrice,
-    quantity: item.quantity || 1,
-    weightGrams: item.weightGrams || null,
-    unitType: item.unitType || 'unknown',
-    normalisedPrice: item.normalisedPrice || null,
-    scannedAt: scannedAt || new Date(),
-  }));
+  // Link every line item to a canonical product (creating one when new) and
+  // recompute normalisation server-side, since the user may have edited
+  // prices, quantities or sizes during review.
+  const priceRecords = [];
+  for (const item of items) {
+    const productId = await ensureProduct(item);
+    const { normalisedPrice, unitType } = normalisePrice({
+      rawPrice: item.rawPrice,
+      quantity: item.quantity || 1,
+      weightGrams: item.weightGrams,
+      volumeMl: item.volumeMl,
+      unitType: item.unitType,
+    });
+
+    priceRecords.push({
+      receiptId: receipt.id,
+      productId,
+      shopId: shop ? shop.id : null,
+      rawName: item.rawName,
+      rawPrice: item.rawPrice,
+      quantity: item.quantity || 1,
+      weightGrams: item.weightGrams || null,
+      volumeMl: item.volumeMl || null,
+      unitType,
+      normalisedPrice,
+      scannedAt: scannedAt || new Date(),
+    });
+  }
 
   const savedRecords = await PriceRecordModel.createMany(priceRecords);
 
-  logger.info('Receipt confirmed and saved', { receiptId: receipt.id, itemCount: savedRecords.length });
+  logger.info('Receipt confirmed and saved', {
+    receiptId: receipt.id,
+    itemCount: savedRecords.length,
+    linkedProducts: savedRecords.filter((r) => r.product_id).length,
+  });
 
   res.status(201).json({
     receipt,

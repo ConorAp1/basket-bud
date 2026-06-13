@@ -19,10 +19,14 @@ import {
   getAnalyticsByShop,
   getAnalyticsByCategory,
   getTopProducts,
+  getShopComparison,
+  getPriceAlerts,
   AnalyticsSummary,
   ShopSpend,
   CategorySpend,
   TopProduct,
+  ShopComparisonScore,
+  PriceAlert,
 } from '@/lib/api';
 
 const PIE_COLORS = ['#16a34a', '#22c55e', '#4ade80', '#86efac', '#bbf7d0', '#166534', '#15803d'];
@@ -79,21 +83,27 @@ export default function DashboardPage() {
   const [byShop, setByShop] = useState<ShopSpend[]>([]);
   const [byCategory, setByCategory] = useState<CategorySpend[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [shopScores, setShopScores] = useState<ShopComparisonScore[]>([]);
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
 
   async function fetchAll(start: string, end: string) {
     setLoading(true);
     setError(null);
     try {
-      const [s, shop, cat, top] = await Promise.all([
+      const [s, shop, cat, top, scores, alerts] = await Promise.all([
         getAnalyticsSummary(start, end),
         getAnalyticsByShop(start, end),
         getAnalyticsByCategory(start, end),
         getTopProducts(start, end),
+        getShopComparison(start, end),
+        getPriceAlerts(),
       ]);
       setSummary(s);
       setByShop(shop);
       setByCategory(cat);
       setTopProducts(top);
+      setShopScores(scores);
+      setPriceAlerts(alerts);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load analytics';
       setError(msg);
@@ -183,7 +193,7 @@ export default function DashboardPage() {
                 <BarChart data={topProducts} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                   <XAxis
-                    dataKey="name"
+                    dataKey="product_name"
                     tick={{ fontSize: 11, fill: '#6b7280' }}
                     tickLine={false}
                     axisLine={false}
@@ -275,6 +285,54 @@ export default function DashboardPage() {
                   <Bar dataKey="total_spend" fill="#16a34a" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Shop comparison: who wins on your basket */}
+          {shopScores.length > 0 && (
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6">
+              <h2 className="font-semibold text-gray-900 mb-1">Cheapest Shop Scoreboard</h2>
+              <p className="text-xs text-gray-400 mb-4">
+                For products you&apos;ve bought at more than one shop, how often each shop had the best normalised price.
+              </p>
+              <div className="space-y-3">
+                {shopScores.map((s) => {
+                  const pct = s.total_products > 0 ? (s.wins / s.total_products) * 100 : 0;
+                  return (
+                    <div key={s.shop_name}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-medium text-gray-800">{s.shop_name}</span>
+                        <span className="text-gray-500">
+                          cheapest for {s.wins} of {s.total_products}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-green-500 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Price rise alerts */}
+          {priceAlerts.length > 0 && (
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6">
+              <h2 className="font-semibold text-gray-900 mb-1">Price Rise Alerts</h2>
+              <p className="text-xs text-gray-400 mb-4">
+                Products whose latest price is above their recent average.
+              </p>
+              <ul className="divide-y divide-gray-50 text-sm">
+                {priceAlerts.map((a) => (
+                  <li key={a.product_id} className="py-2 flex items-center justify-between gap-2">
+                    <span className="text-gray-800 truncate">{a.product_name}</span>
+                    <span className="text-red-600 font-semibold whitespace-nowrap">
+                      +{Number(a.pct_change).toFixed(1)}%
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

@@ -17,7 +17,7 @@ async function getSpendSummary({ startDate, endDate } = {}) {
   const { rows } = await pool.query(
     `SELECT
        COUNT(DISTINCT r.id) AS total_receipts,
-       SUM(pr.raw_price * pr.quantity) AS total_spend,
+       SUM(pr.raw_price) AS total_spend,
        COUNT(DISTINCT pr.product_id) AS unique_products,
        COUNT(DISTINCT r.shop_id) AS shops_visited
      FROM receipts r
@@ -47,7 +47,7 @@ async function getSpendByShop({ startDate, endDate } = {}) {
        s.id AS shop_id,
        s.name AS shop_name,
        COUNT(DISTINCT r.id) AS receipt_count,
-       SUM(pr.raw_price * pr.quantity) AS total_spend
+       SUM(pr.raw_price) AS total_spend
      FROM shops s
      JOIN receipts r ON r.shop_id = s.id
      JOIN price_records pr ON pr.receipt_id = r.id
@@ -77,7 +77,7 @@ async function getSpendByCategory({ startDate, endDate } = {}) {
     `SELECT
        COALESCE(p.category, 'Uncategorised') AS category,
        COUNT(pr.id) AS item_count,
-       SUM(pr.raw_price * pr.quantity) AS total_spend
+       SUM(pr.raw_price) AS total_spend
      FROM price_records pr
      JOIN receipts r ON r.id = pr.receipt_id
      LEFT JOIN products p ON p.id = pr.product_id
@@ -160,7 +160,7 @@ async function getTopProductsBySpend({ startDate, endDate, limit = 10 } = {}) {
     `SELECT
        COALESCE(p.name, pr.raw_name) AS product_name,
        p.id                          AS product_id,
-       SUM(pr.raw_price * pr.quantity) AS total_spend,
+       SUM(pr.raw_price) AS total_spend,
        COUNT(*)                      AS purchase_count
      FROM price_records pr
      LEFT JOIN products p ON p.id = pr.product_id

@@ -1,7 +1,16 @@
 const analyticsService = require('../services/analyticsService');
 
+// The web app sends ?start=&end=; accept ?startDate=&endDate= too.
+function dateRange(query) {
+  return {
+    startDate: query.startDate || query.start,
+    endDate: query.endDate || query.end,
+  };
+}
+
 async function getTopProducts(req, res) {
-  const { startDate, endDate, limit } = req.query;
+  const { startDate, endDate } = dateRange(req.query);
+  const { limit } = req.query;
   const data = await analyticsService.getTopProductsBySpend({
     startDate,
     endDate,
@@ -11,7 +20,7 @@ async function getTopProducts(req, res) {
 }
 
 async function getShopComparison(req, res) {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate } = dateRange(req.query);
   const data = await analyticsService.getShopComparisonScore({ startDate, endDate });
   res.json(data);
 }
@@ -22,19 +31,24 @@ async function getPriceAlerts(req, res) {
 }
 
 async function getSummary(req, res) {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate } = dateRange(req.query);
   const summary = await analyticsService.getSpendSummary({ startDate, endDate });
-  res.json(summary);
+  // Field names the dashboard expects, with the originals kept for compatibility.
+  res.json({
+    ...summary,
+    receipts_scanned: summary.total_receipts,
+    products_tracked: summary.unique_products,
+  });
 }
 
 async function getByShop(req, res) {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate } = dateRange(req.query);
   const data = await analyticsService.getSpendByShop({ startDate, endDate });
   res.json(data);
 }
 
 async function getByCategory(req, res) {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate } = dateRange(req.query);
   const data = await analyticsService.getSpendByCategory({ startDate, endDate });
   res.json(data);
 }
@@ -48,7 +62,7 @@ async function getCheapestShop(req, res) {
 }
 
 async function getPriceTrends(req, res) {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate } = dateRange(req.query);
   const data = await analyticsService.getPriceTrends(req.params.productId, { startDate, endDate });
   res.json(data);
 }

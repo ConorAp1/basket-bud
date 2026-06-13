@@ -9,17 +9,39 @@ export interface Shop {
   created_at: string;
 }
 
+export interface MatchCandidate {
+  id: number;
+  name: string;
+  category?: string;
+  similarity: number;
+}
+
+// Shape returned by POST /receipts/scan for each line item.
+export interface ScannedItem {
+  rawName: string;
+  rawPrice: number;
+  quantity: number;
+  weightGrams: number | null;
+  volumeMl: number | null;
+  unitType: string;
+  normalisedPrice: number | null;
+  suggestedCategory: string | null;
+  productId: number | null;
+  matchedProductName: string | null;
+  matchConfidence: number;
+  candidates: MatchCandidate[];
+}
+
+// Shape returned when reading saved receipts.
 export interface ReceiptItem {
   id?: number;
-  name: string;
-  raw_name?: string;
-  price: number;
-  raw_price?: number;
+  raw_name: string;
+  raw_price: number;
   quantity: number;
   unit_type: string;
   normalised_price_per_unit?: number;
+  product_name?: string;
   category?: string;
-  suggestedCategory?: string;
 }
 
 export interface Receipt {
@@ -72,13 +94,19 @@ export interface CategorySpend {
 }
 
 export interface TopProduct {
-  name: string;
+  product_name: string;
+  product_id: number | null;
   total_spend: number;
+  purchase_count: number;
 }
 
 export interface ScanResult {
-  items: ReceiptItem[];
-  raw_text?: string;
+  items: ScannedItem[];
+  rawText?: string;
+  shopName?: string | null;
+  receiptDate?: string | null;
+  totalAmount?: number | null;
+  imagePath?: string;
 }
 
 export interface ConfirmPayload {
@@ -87,10 +115,31 @@ export interface ConfirmPayload {
     rawName: string;
     rawPrice: number;
     quantity: number;
-    unitType: string;
-    suggestedCategory: string;
+    weightGrams?: number | null;
+    volumeMl?: number | null;
+    unitType?: string;
+    productId?: number | null;
+    suggestedCategory?: string;
   }[];
   scannedAt: string;
+  totalAmount?: number | null;
+  imagePath?: string;
+  rawText?: string;
+}
+
+export interface ShopComparisonScore {
+  shop_name: string;
+  wins: number;
+  total_products: number;
+}
+
+export interface PriceAlert {
+  product_id: number;
+  product_name: string;
+  latest_price: number;
+  avg_price: number;
+  unit_type: string;
+  pct_change: number;
 }
 
 // --- API helpers ---
@@ -189,4 +238,15 @@ export async function getTopProducts(start?: string, end?: string): Promise<TopP
   if (start) params.start = start;
   if (end) params.end = end;
   return get<TopProduct[]>('/analytics/top-products', params);
+}
+
+export async function getShopComparison(start?: string, end?: string): Promise<ShopComparisonScore[]> {
+  const params: Record<string, string> = {};
+  if (start) params.start = start;
+  if (end) params.end = end;
+  return get<ShopComparisonScore[]>('/analytics/shop-comparison', params);
+}
+
+export async function getPriceAlerts(): Promise<PriceAlert[]> {
+  return get<PriceAlert[]>('/analytics/price-alerts');
 }

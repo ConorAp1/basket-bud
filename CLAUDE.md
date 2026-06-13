@@ -18,16 +18,15 @@ This file gives Claude full context about the Basket-Bud project so it can assis
 
 | Layer | Technology |
 |---|---|
-| Frontend | React Native (Expo) |
-| Backend | Node.js with Express |
+| Frontend | Next.js web app (`frontend-web/`, deployed on Vercel) — the legacy Expo app in `frontend/` is no longer developed |
+| Backend | Node.js with Express (deployed on Railway) |
 | Database | PostgreSQL |
-| OCR | Tesseract.js (open-source, no paid API) |
-| Data Visualisation | Recharts (within a React Native Web or dashboard view) |
-| Hosting | Self-hosted on a home server |
+| OCR | Claude Vision API (`@anthropic-ai/sdk`) — returns structured line items directly from receipt images |
+| Data Visualisation | Recharts |
 | Package Manager | npm |
-| Language | JavaScript (ES modules on backend, JSX on frontend) |
+| Language | JavaScript on the backend, TypeScript/React in `frontend-web/` |
 
-No paid APIs. Everything must run locally or be self-hostable.
+The Claude API is the one permitted paid API (receipt extraction — Tesseract.js proved too inaccurate on real receipts). Everything else must be free/self-hostable.
 
 ---
 
@@ -57,7 +56,7 @@ basket-bud/
 │   │   ├── shopController.js
 │   │   └── analyticsController.js
 │   ├── services/
-│   │   ├── ocrService.js          # Tesseract.js receipt parsing logic
+│   │   ├── ocrService.js          # Claude Vision receipt extraction
 │   │   ├── parserService.js       # Extract structured data from OCR text
 │   │   ├── normalisationService.js # Price-per-unit / price-per-weight logic
 │   │   └── analyticsService.js    # Aggregation queries
@@ -117,7 +116,7 @@ basket-bud/
 
 ## MVP Features
 
-1. **Receipt photo scanning** – Camera capture in React Native, image sent to backend, processed with Tesseract.js to extract text.
+1. **Receipt photo scanning** – Photo uploaded in the web app, sent to the backend, processed with Claude Vision to extract structured line items.
 2. **Data extraction & review** – Parsed product names, quantities, weights, and prices surfaced for user review/correction before saving.
 3. **Product categorisation and tagging** – Products assigned categories (Dairy, Produce, Bakery, etc.) and free-form tags.
 4. **Price-per-unit / price-per-weight normalisation** – All prices normalised to a comparable base unit (e.g. £/100g, £/litre, £/item) so comparisons are meaningful.
@@ -229,10 +228,10 @@ psql -U basketbud -d basketbud_db
 - Styles use React Native `StyleSheet.create()` – no inline style objects except for dynamic values.
 
 ### OCR & Parsing
-- Tesseract.js runs on the **backend** (Node.js worker), not in the browser/app. This keeps the mobile app lightweight.
-- `ocrService.js` is responsible only for running Tesseract and returning raw text.
-- `parserService.js` is responsible for interpreting that text into structured `{ name, price, quantity, weight, unit }` objects. These are separate concerns.
-- Parser should be resilient – partial/bad OCR output is expected. Always return best-effort results and flag uncertain items for user review.
+- Receipt extraction uses the **Claude Vision API** on the backend (`ocrService.js`). It returns structured JSON: shop, date, total, and line items with `{ name, price, quantity, size_value, size_unit }`.
+- `parserService.js` provides keyword-based category suggestion.
+- `matchingService.js` fuzzy-matches line items to canonical products (pg_trgm) and auto-creates products at confirm time.
+- Extraction is imperfect – always return best-effort results and let the user review/correct before saving.
 
 ### Normalisation
 - `normalisationService.js` converts all prices to a `normalised_price_per_unit`.
@@ -266,7 +265,7 @@ See `.env.example` for all required variables. Key ones:
 
 | Decision | Reason |
 |---|---|
-| Tesseract.js on backend (not device) | Keeps mobile app lightweight; OCR is CPU-intensive |
+| Claude Vision over Tesseract.js | Tesseract was too inaccurate on real receipts; Claude returns structured items in one call |
 | Raw SQL over ORM | Full control, easier debugging for a solo dev, no abstraction overhead |
 | PostgreSQL over SQLite | Better querying for analytics aggregations; handles growth |
 | Zustand over Redux | Minimal boilerplate for a solo project |
@@ -280,7 +279,7 @@ See `.env.example` for all required variables. Key ones:
 - Always write JavaScript (not TypeScript).
 - Keep backend logic in the correct layer (routes → controllers → services → models).
 - Write SQL queries compatible with PostgreSQL.
-- Assume Tesseract.js is used server-side via the `tesseract.js` npm package.
+- Assume the Claude API (`@anthropic-ai/sdk`) is used server-side for receipt extraction.
 - Remember that price normalisation is central – any feature touching prices must account for different unit types.
 - Suggest user-review/correction flows wherever OCR output is used, as accuracy is not guaranteed.
 - Keep the self-hosted, no-paid-API constraint in mind for all suggestions.

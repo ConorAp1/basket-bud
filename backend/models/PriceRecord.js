@@ -8,8 +8,8 @@ async function createMany(items) {
     const { rows } = await pool.query(
       `INSERT INTO price_records
          (receipt_id, product_id, shop_id, raw_name, raw_price, quantity,
-          weight_grams, unit_type, normalised_price_per_unit, scanned_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+          weight_grams, volume_ml, unit_type, normalised_price_per_unit, scanned_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
         item.receiptId,
         item.productId || null,
@@ -18,6 +18,7 @@ async function createMany(items) {
         item.rawPrice,
         item.quantity || 1,
         item.weightGrams || null,
+        item.volumeMl || null,
         item.unitType || 'unknown',
         item.normalisedPrice || null,
         item.scannedAt || new Date(),

@@ -1,0 +1,1 @@
+ALTER TABLE price_records ADD COLUMN IF NOT EXISTS volume_ml INTEGER;

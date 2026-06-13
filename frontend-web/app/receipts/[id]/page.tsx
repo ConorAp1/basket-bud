@@ -106,7 +106,7 @@ export default function ReceiptDetailPage({
                     {receipt.items.map((item, idx) => (
                       <tr key={item.id ?? idx} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-3 text-gray-900 font-medium">
-                          {item.name || item.raw_name}
+                          {item.product_name || item.raw_name}
                           {item.category && (
                             <span className="ml-2 text-xs bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">
                               {item.category}
@@ -116,7 +116,7 @@ export default function ReceiptDetailPage({
                         <td className="px-6 py-3 text-gray-600">{item.quantity}</td>
                         <td className="px-6 py-3 text-gray-600">{item.unit_type || '—'}</td>
                         <td className="px-6 py-3 text-gray-900 text-right">
-                          {formatCurrency(item.price ?? item.raw_price ?? 0)}
+                          {formatCurrency(item.raw_price ?? 0)}
                         </td>
                         <td className="px-6 py-3 text-gray-600 text-right">
                           {item.normalised_price_per_unit != null
