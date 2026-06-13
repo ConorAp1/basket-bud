@@ -38,7 +38,7 @@ export default function HomePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Your Receipts</h1>
           <p className="text-gray-500 text-sm mt-1">All your scanned grocery receipts</p>

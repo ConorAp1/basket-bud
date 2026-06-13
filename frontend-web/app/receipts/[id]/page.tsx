@@ -87,7 +87,38 @@ export default function ReceiptDetailPage({
                   Line Items ({receipt.items.length})
                 </h2>
               </div>
-              <div className="overflow-x-auto">
+              {/* Mobile: card list */}
+              <div className="sm:hidden divide-y divide-gray-50">
+                {receipt.items.map((item, idx) => (
+                  <div key={item.id ?? idx} className="px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-gray-900">{item.name || item.raw_name}</p>
+                      <span className="font-semibold text-gray-900 whitespace-nowrap">
+                        {formatCurrency(item.price ?? item.raw_price ?? 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                      <span>Qty {item.quantity}</span>
+                      <span>·</span>
+                      <span>{item.unit_type || '—'}</span>
+                      {item.normalised_price_per_unit != null && (
+                        <>
+                          <span>·</span>
+                          <span>{formatCurrency(item.normalised_price_per_unit)}/unit</span>
+                        </>
+                      )}
+                      {item.category && (
+                        <span className="ml-auto bg-green-50 text-green-700 px-1.5 py-0.5 rounded-full">
+                          {item.category}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 text-left">

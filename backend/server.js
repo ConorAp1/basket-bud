@@ -35,10 +35,30 @@ fs.mkdirSync(uploadDir, { recursive: true });
 
 app.use(helmet());
 // In production, FRONTEND_URL must be set; in development allow all origins.
-const corsOrigin = process.env.FRONTEND_URL
-  || (process.env.NODE_ENV === 'production' ? false : true);
-if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
-  logger.warn('FRONTEND_URL is not set — all cross-origin requests will be blocked in production');
+// FRONTEND_URL accepts a comma-separated list of allowed origins. Vercel
+// preview deployments get a unique origin per commit so they can't be listed —
+// set ALLOW_VERCEL_PREVIEWS=true to also accept any https://*.vercel.app origin.
+const allowedOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((s) => s.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS === 'true';
+
+let corsOrigin;
+if (allowedOrigins.length > 0 || allowVercelPreviews) {
+  corsOrigin = (origin, callback) => {
+    if (!origin) return callback(null, true); // curl, health checks, same-origin
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (allowVercelPreviews && /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  };
+} else {
+  corsOrigin = process.env.NODE_ENV === 'production' ? false : true;
+  if (process.env.NODE_ENV === 'production') {
+    logger.warn('FRONTEND_URL is not set — all cross-origin requests will be blocked in production');
+  }
 }
 app.use(cors({ origin: corsOrigin }));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));

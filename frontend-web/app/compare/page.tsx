@@ -96,7 +96,7 @@ export default function ComparePage() {
               setComparisons([]);
             }}
             placeholder="Search products (e.g. semi-skimmed milk)…"
-            className="flex-1 py-3 text-sm text-gray-800 focus:outline-none placeholder:text-gray-400"
+            className="flex-1 py-3 text-base sm:text-sm text-gray-800 focus:outline-none placeholder:text-gray-400"
           />
           {searching && (
             <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
@@ -158,7 +158,36 @@ export default function ComparePage() {
               <p className="text-sm text-gray-400">{selectedProduct.brand}</p>
             )}
           </div>
-          <div className="overflow-x-auto">
+          {/* Mobile: card list */}
+          <div className="sm:hidden divide-y divide-gray-50">
+            {comparisons.map((row, idx) => {
+              const isCheapest = cheapest && row.shop_name === cheapest.shop_name &&
+                row.normalised_price_per_unit === cheapest.normalised_price_per_unit;
+              return (
+                <div key={idx} className={`px-4 py-3 ${isCheapest ? 'bg-green-50' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900">
+                      {row.shop_name}
+                      {isCheapest && (
+                        <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                          Best price
+                        </span>
+                      )}
+                    </p>
+                    <span className="font-semibold text-gray-900">
+                      {formatCurrency(row.normalised_price_per_unit)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {row.unit_type} · scanned {formatDate(row.scanned_at)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-left">

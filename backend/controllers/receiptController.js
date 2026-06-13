@@ -64,7 +64,15 @@ async function scanReceipt(req, res) {
     return res.status(400).json({ error: 'No receipt image provided' });
   }
 
-  const { items: claudeItems, detectedShop, confidence, rawText } = await extractText(req.file.path);
+  let claudeItems, detectedShop, confidence, rawText;
+  try {
+    ({ items: claudeItems, detectedShop, confidence, rawText } = await extractText(req.file.path));
+  } catch (err) {
+    logger.error('Receipt scan failed', { file: req.file.path, error: err.message });
+    // The central errorHandler masks 5xx messages; respond here so the user
+    // sees why the scan failed (truncated response, bad image, API auth, etc).
+    return res.status(502).json({ error: `Receipt scanning failed: ${err.message}` });
+  }
   const mappedItems = claudeItems.map(mapClaudeItem);
   const normalisedItems = normaliseItems(mappedItems);
 

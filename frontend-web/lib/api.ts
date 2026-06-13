@@ -102,42 +102,73 @@ export interface ConfirmPayload {
 
 // --- API helpers ---
 
+// fetch() rejects with an opaque TypeError ("Failed to fetch") when the request
+// never reaches the server — wrong NEXT_PUBLIC_API_URL, CORS rejection, or the
+// backend being down. Translate that into something actionable.
+function unreachableError(err: unknown): Error {
+  if (err instanceof TypeError) {
+    return new Error(
+      `Could not reach the Basket-Bud API at ${BASE_URL}. ` +
+      'Check that NEXT_PUBLIC_API_URL is set for this deployment in Vercel, ' +
+      'and that the backend FRONTEND_URL/CORS settings allow this site.'
+    );
+  }
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+async function parseResponse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    let message = await res.text();
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed && typeof parsed.error === 'string') message = parsed.error;
+    } catch {
+      // not JSON — keep raw text
+    }
+    throw new Error(`API error ${res.status}: ${message}`);
+  }
+  return res.json();
+}
+
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   }
-  const res = await fetch(url.toString(), { cache: 'no-store' });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), { cache: 'no-store' });
+  } catch (err) {
+    throw unreachableError(err);
   }
-  return res.json();
+  return parseResponse<T>(res);
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw unreachableError(err);
   }
-  return res.json();
+  return parseResponse<T>(res);
 }
 
 async function postFormData<T>(path: string, formData: FormData): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST',
-    body: formData,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API error ${res.status}: ${text}`);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      body: formData,
+    });
+  } catch (err) {
+    throw unreachableError(err);
   }
-  return res.json();
+  return parseResponse<T>(res);
 }
 
 // --- Endpoint functions ---

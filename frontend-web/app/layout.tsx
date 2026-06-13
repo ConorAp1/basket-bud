@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { TopNav, BottomNav } from "./nav";
 
 export const metadata: Metadata = {
   title: "Basket Bud – Grocery Price Tracker",
@@ -23,38 +24,14 @@ export default function RootLayout({
             >
               🧺 Basket Bud
             </Link>
-            <div className="flex items-center gap-1">
-              <Link
-                href="/"
-                className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-green-600 hover:bg-green-50 transition-colors"
-              >
-                Home
-              </Link>
-              <Link
-                href="/scan"
-                className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-green-600 hover:bg-green-50 transition-colors"
-              >
-                Scan
-              </Link>
-              <Link
-                href="/compare"
-                className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-green-600 hover:bg-green-50 transition-colors"
-              >
-                Compare
-              </Link>
-              <Link
-                href="/dashboard"
-                className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-green-600 hover:bg-green-50 transition-colors"
-              >
-                Dashboard
-              </Link>
-            </div>
+            <TopNav />
           </nav>
         </header>
-        <main className="flex-1">{children}</main>
-        <footer className="border-t border-gray-100 py-4 text-center text-sm text-gray-400">
+        <main className="flex-1 pb-20 sm:pb-0">{children}</main>
+        <footer className="hidden sm:block border-t border-gray-100 py-4 text-center text-sm text-gray-400">
           Basket Bud – self-hosted grocery tracker
         </footer>
+        <BottomNav />
       </body>
     </html>
   );
