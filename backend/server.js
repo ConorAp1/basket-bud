@@ -34,33 +34,35 @@ const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads', 'rec
 fs.mkdirSync(uploadDir, { recursive: true });
 
 app.use(helmet());
-// In production, FRONTEND_URL must be set; in development allow all origins.
-// FRONTEND_URL accepts a comma-separated list of allowed origins. Vercel
-// preview deployments get a unique origin per commit so they can't be listed —
-// set ALLOW_VERCEL_PREVIEWS=true to also accept any https://*.vercel.app origin.
+// CORS allow-list, in order:
+//  1. Any origins explicitly listed in FRONTEND_URL (comma-separated).
+//  2. This project's own Vercel deployments — production (basket-bud-theta...)
+//     and per-commit previews (basket-bud-*.vercel.app). Always allowed so the
+//     hosted web app works with no extra Railway config.
+//  3. Any *.vercel.app origin, if ALLOW_VERCEL_PREVIEWS=true (broader opt-in).
+//  4. localhost, outside production, for local dev.
 const allowedOrigins = (process.env.FRONTEND_URL || '')
   .split(',')
   .map((s) => s.trim().replace(/\/$/, ''))
   .filter(Boolean);
-const allowVercelPreviews = process.env.ALLOW_VERCEL_PREVIEWS === 'true';
+const allowAllVercel = process.env.ALLOW_VERCEL_PREVIEWS === 'true';
+const isProd = process.env.NODE_ENV === 'production';
 
-let corsOrigin;
-if (allowedOrigins.length > 0 || allowVercelPreviews) {
-  corsOrigin = (origin, callback) => {
-    if (!origin) return callback(null, true); // curl, health checks, same-origin
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (allowVercelPreviews && /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) {
-      return callback(null, true);
-    }
-    return callback(null, false);
-  };
-} else {
-  corsOrigin = process.env.NODE_ENV === 'production' ? false : true;
-  if (process.env.NODE_ENV === 'production') {
-    logger.warn('FRONTEND_URL is not set — all cross-origin requests will be blocked in production');
-  }
+function isAllowedOrigin(origin) {
+  if (allowedOrigins.includes(origin)) return true;
+  if (/^https:\/\/basket-bud[a-z0-9-]*\.vercel\.app$/.test(origin)) return true;
+  if (allowAllVercel && /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return true;
+  if (!isProd && /^https?:\/\/localhost(:\d+)?$/.test(origin)) return true;
+  return false;
 }
-app.use(cors({ origin: corsOrigin }));
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // No Origin header (curl, health checks, same-origin, native app) → allow.
+    if (!origin) return callback(null, true);
+    return callback(null, isAllowedOrigin(origin));
+  },
+}));
 app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
