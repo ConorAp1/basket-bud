@@ -1,6 +1,16 @@
 const Anthropic = require('@anthropic-ai/sdk');
-const sharp = require('sharp');
+const fs = require('fs');
+const path = require('path');
 const logger = require('../utils/logger');
+
+// sharp relies on native bindings; if they can't load on the host, degrade
+// gracefully (send the original image) instead of crashing the whole server.
+let sharp = null;
+try {
+  sharp = require('sharp');
+} catch (err) {
+  logger.warn('sharp unavailable — receipt images will be sent without preprocessing', { error: err.message });
+}
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -13,16 +23,30 @@ const SYSTEM_PROMPT =
   'Skip totals, subtotals, discounts, VAT lines, and loyalty card savings. ' +
   'Return raw JSON only, no markdown. Example: {"shop":"Tesco","items":[{"name":"Milk","price":1.09,"quantity":1,"unit":"each"}]}';
 
+function mediaTypeForPath(imagePath) {
+  const ext = path.extname(imagePath).toLowerCase().replace('.', '');
+  return ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+}
+
 // Claude Vision accepts images up to 5MB / ~1568px before server-side downscaling.
 // Phone photos are routinely 3000px+ and can exceed 5MB, and are often EXIF-rotated,
-// so normalise everything to an upright, bounded JPEG before sending.
+// so normalise to an upright, bounded JPEG when sharp is available. If sharp can't
+// process the image (or isn't installed), fall back to the original bytes.
 async function prepareImage(imagePath) {
+  if (sharp) {
+    try {
+      const data = await sharp(imagePath)
+        .rotate() // apply EXIF orientation so sideways photos read correctly
+        .resize(1568, 1568, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      return { data, mediaType: 'image/jpeg' };
+    } catch (err) {
+      logger.warn('sharp failed to process image — sending original bytes', { error: err.message });
+    }
+  }
   try {
-    return await sharp(imagePath)
-      .rotate() // apply EXIF orientation so sideways photos read correctly
-      .resize(1568, 1568, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 90 })
-      .toBuffer();
+    return { data: fs.readFileSync(imagePath), mediaType: mediaTypeForPath(imagePath) };
   } catch (err) {
     throw new Error(`Could not read receipt image (${err.message}). Try re-uploading as JPEG or PNG.`);
   }
@@ -31,8 +55,8 @@ async function prepareImage(imagePath) {
 async function extractText(imagePath) {
   logger.info('Starting Claude Vision OCR', { imagePath });
 
-  const imageBuffer = await prepareImage(imagePath);
-  const base64Image = imageBuffer.toString('base64');
+  const { data, mediaType } = await prepareImage(imagePath);
+  const base64Image = data.toString('base64');
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-5',
@@ -44,7 +68,7 @@ async function extractText(imagePath) {
         content: [
           {
             type: 'image',
-            source: { type: 'base64', media_type: 'image/jpeg', data: base64Image },
+            source: { type: 'base64', media_type: mediaType, data: base64Image },
           },
           { type: 'text', text: 'Extract all line items from this receipt.' },
         ],
