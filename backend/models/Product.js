@@ -49,6 +49,42 @@ async function update(id, { name, brand, category, tags, canonical_unit }) {
   return rows[0] || null;
 }
 
+// Resolve a canonical product for a scanned line item so that price records can
+// be linked to a product_id. Without this, every price record stays product_id
+// NULL and all product/category analytics (category breakdown, unique product
+// counts, shop comparison, price alerts) come back empty.
+async function findOrCreateByName({ name, category, canonical_unit }) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return null;
+
+  const { rows } = await pool.query(
+    'SELECT * FROM products WHERE LOWER(name) = LOWER($1) LIMIT 1',
+    [trimmed]
+  );
+
+  if (rows[0]) {
+    const existing = rows[0];
+    // Backfill/refresh fields the user confirmed on this receipt. The user's
+    // latest explicit category wins; only set canonical_unit when it was unknown.
+    const nextCategory = category || existing.category;
+    const nextUnit =
+      existing.canonical_unit && existing.canonical_unit !== 'unknown'
+        ? existing.canonical_unit
+        : canonical_unit || existing.canonical_unit;
+
+    if (nextCategory !== existing.category || nextUnit !== existing.canonical_unit) {
+      const { rows: updated } = await pool.query(
+        `UPDATE products SET category = $1, canonical_unit = $2 WHERE id = $3 RETURNING *`,
+        [nextCategory || null, nextUnit || 'unknown', existing.id]
+      );
+      return updated[0];
+    }
+    return existing;
+  }
+
+  return create({ name: trimmed, category, canonical_unit });
+}
+
 async function getCategories() {
   const { rows } = await pool.query(
     `SELECT DISTINCT category FROM products WHERE category IS NOT NULL ORDER BY category ASC`
@@ -68,4 +104,4 @@ async function fuzzySearch(name) {
   return rows;
 }
 
-module.exports = { findAll, findById, create, update, getCategories, fuzzySearch };
+module.exports = { findAll, findById, create, findOrCreateByName, update, getCategories, fuzzySearch };

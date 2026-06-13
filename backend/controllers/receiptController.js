@@ -1,9 +1,20 @@
 const { extractText } = require('../services/ocrService');
-const { suggestCategory } = require('../services/parserService');
+const { suggestCategory, CATEGORY_KEYWORDS } = require('../services/parserService');
+
+// Only trust a Claude-supplied category if it's one we actually offer in the
+// app, so a stray label can't slip past the review UI's category picker.
+const VALID_CATEGORIES = new Set(Object.keys(CATEGORY_KEYWORDS));
+
+function normaliseCategory(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const match = [...VALID_CATEGORIES].find((c) => c.toLowerCase() === raw.trim().toLowerCase());
+  return match || null;
+}
 const { normaliseItems } = require('../services/normalisationService');
 const ReceiptModel = require('../models/Receipt');
 const PriceRecordModel = require('../models/PriceRecord');
 const ShopModel = require('../models/Shop');
+const ProductModel = require('../models/Product');
 const logger = require('../utils/logger');
 
 // Map Claude's response to the format normaliseItems expects.
@@ -54,7 +65,9 @@ function mapClaudeItem(item) {
     weightGrams,
     volumeMl,
     unitType,
-    suggestedCategory: suggestCategory(rawName),
+    // Prefer the category Claude inferred from the receipt; fall back to
+    // keyword matching on the product name when it didn't give a usable one.
+    suggestedCategory: normaliseCategory(item.category) || suggestCategory(rawName),
     uncertain: false,
   };
 }
@@ -104,18 +117,36 @@ async function confirmReceipt(req, res) {
     totalAmount: parseFloat(calculatedTotal.toFixed(2)),
   });
 
-  const priceRecords = items.map((item) => ({
-    receiptId: receipt.id,
-    productId: item.productId || null,
-    shopId: shop ? shop.id : null,
-    rawName: item.rawName,
-    rawPrice: item.rawPrice,
-    quantity: item.quantity || 1,
-    weightGrams: item.weightGrams || null,
-    unitType: item.unitType || 'unknown',
-    normalisedPrice: item.normalisedPrice || null,
-    scannedAt: scannedAt || new Date(),
-  }));
+  // Resolve a product for each line item so the price record carries a
+  // product_id. Category lives on the products table, so without this link
+  // every category/product analytic is empty. The user's reviewed category
+  // (item.category) is the source of truth here.
+  const priceRecords = [];
+  for (const item of items) {
+    const productId =
+      item.productId ||
+      (
+        await ProductModel.findOrCreateByName({
+          name: item.rawName,
+          category: item.category || item.suggestedCategory || null,
+          canonical_unit: item.unitType || 'unknown',
+        })
+      )?.id ||
+      null;
+
+    priceRecords.push({
+      receiptId: receipt.id,
+      productId,
+      shopId: shop ? shop.id : null,
+      rawName: item.rawName,
+      rawPrice: item.rawPrice,
+      quantity: item.quantity || 1,
+      weightGrams: item.weightGrams || null,
+      unitType: item.unitType || 'unknown',
+      normalisedPrice: item.normalisedPrice || null,
+      scannedAt: scannedAt || new Date(),
+    });
+  }
 
   const savedRecords = await PriceRecordModel.createMany(priceRecords);
 
