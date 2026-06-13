@@ -123,20 +123,20 @@ export default function DashboardPage() {
           <p className="text-gray-500 text-sm mt-1">Spending insights from your scanned receipts</p>
         </div>
         {/* Date range */}
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <label className="text-gray-500">From</label>
           <input
             type="date"
             value={startDate}
             onChange={(e) => handleDateChange('start', e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-base sm:text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-400"
           />
           <label className="text-gray-500">to</label>
           <input
             type="date"
             value={endDate}
             onChange={(e) => handleDateChange('end', e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-base sm:text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-400"
           />
         </div>
       </div>

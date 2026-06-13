@@ -4,6 +4,31 @@ This file tracks what has been built, fixed, and the current state of the applic
 
 ---
 
+## Session: 2026-06-13 (Scan Failure Fix + Mobile-Friendly Web UI)
+
+### Bugs Fixed
+
+| Bug | Root Cause | Fix |
+|---|---|---|
+| Receipts fail to scan on upload | `ocrService.js` capped Claude Vision at `max_tokens: 1024` — real receipts (20–30 items) produce JSON longer than that, so the response truncated mid-JSON and `JSON.parse` threw → 500 | Raised to 8192 and added explicit `stop_reason === 'max_tokens'` check with a descriptive error |
+| Large/rotated phone photos fail | Photos can exceed Claude's 5MB image limit; EXIF-rotated photos sent sideways | Added `sharp` preprocessing: EXIF rotate, resize to fit 1568px, re-encode JPEG q90 before base64 |
+| Scan errors show "Internal server error" | `errorHandler` masks all 5xx messages | `scanReceipt` controller now catches OCR errors and returns 502 with the real reason |
+
+### Mobile-Friendly Web UI (frontend-web)
+
+| Change | Details |
+|---|---|
+| Bottom tab navigation | New `app/nav.tsx` (client component, `usePathname` active state); fixed bottom bar on `< sm`, top nav links on `≥ sm` |
+| Scan page | "Take Photo" button (`capture="environment"`) + "Upload Image" button; extracted-items table becomes stacked editable cards on mobile; full-width save button |
+| Compare page | Comparison table becomes cards on mobile |
+| Receipt detail | Line-items table becomes cards on mobile |
+| Inputs | `text-base sm:text-sm` on all form controls (≥16px prevents iOS Safari auto-zoom on focus) |
+| Dashboard / Home | Date controls and headers wrap on narrow screens |
+
+Note: `npx eslint app lib` reports 2 pre-existing `react-hooks/set-state-in-effect` errors (compare debounce, dashboard initial fetch) — present before this session, not blockers (`next build` passes).
+
+---
+
 ## Session: 2026-05-22 (Deployment Fixes + MVP Completion)
 
 ### Deployment Target

@@ -55,9 +55,13 @@ function Spinner({ label }: { label?: string }) {
   );
 }
 
+const inputClass =
+  'border border-gray-200 rounded-lg px-2 py-1.5 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-green-400';
+
 export default function ScanPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<string>('Unknown');
@@ -81,6 +85,7 @@ export default function ScanPage() {
     setScanError(null);
     setItems(null);
     handleScan(file);
+    e.target.value = '';
   }
 
   async function handleScan(file: File) {
@@ -154,28 +159,53 @@ export default function ScanPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Scan a Receipt</h1>
-      <p className="text-gray-500 text-sm mb-8">
-        Upload a photo of your grocery receipt and we&apos;ll extract the items automatically.
+      <p className="text-gray-500 text-sm mb-6 sm:mb-8">
+        Take a photo of your grocery receipt and we&apos;ll extract the items automatically.
       </p>
 
       {/* Upload area */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 mb-6">
-        <div
-          className="border-2 border-dashed border-gray-200 rounded-xl p-10 text-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors"
-          onClick={() => fileInputRef.current?.click()}
-        >
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4 sm:p-6 mb-6">
+        <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 sm:p-10 text-center">
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Receipt preview" className="max-h-64 mx-auto rounded-lg object-contain" />
+            <img src={preview} alt="Receipt preview" className="max-h-64 mx-auto rounded-lg object-contain mb-4" />
           ) : (
             <>
               <p className="text-4xl mb-3">📷</p>
-              <p className="text-gray-600 font-medium">Click to upload a receipt photo</p>
-              <p className="text-gray-400 text-sm mt-1">JPEG, PNG or WebP accepted</p>
+              <p className="text-gray-600 font-medium mb-4">Snap or upload a receipt photo</p>
             </>
           )}
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              className="sm:hidden bg-green-600 text-white px-5 py-3 rounded-lg text-base font-medium active:bg-green-700"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={scanning}
+            >
+              📷 Take Photo
+            </button>
+            <button
+              className="border border-green-600 text-green-700 bg-white px-5 py-3 sm:py-2 rounded-lg text-base sm:text-sm font-medium hover:bg-green-50 active:bg-green-50"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={scanning}
+            >
+              {preview ? 'Choose a different image' : '🖼️ Upload Image'}
+            </button>
+          </div>
+          <p className="text-gray-400 text-xs mt-3">JPEG, PNG or WebP accepted</p>
+
+          {/* Camera capture (mobile) */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          {/* Library / file picker */}
           <input
             ref={fileInputRef}
             type="file"
@@ -184,15 +214,6 @@ export default function ScanPage() {
             onChange={handleFileChange}
           />
         </div>
-
-        {preview && !scanning && (
-          <button
-            className="mt-3 text-xs text-gray-400 hover:text-green-600 underline"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Choose a different image
-          </button>
-        )}
       </div>
 
       {/* Scanning state */}
@@ -205,19 +226,19 @@ export default function ScanPage() {
         </div>
       )}
 
-      {/* Editable items table */}
+      {/* Editable items */}
       {items && !scanning && (
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Extracted Items</h2>
             <span className="text-xs text-gray-400">{items.length} item{items.length !== 1 ? 's' : ''}</span>
           </div>
 
           {/* Shop selector */}
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex items-center gap-3">
             <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Shop:</label>
             <select
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-400"
+              className={`${inputClass} flex-1 sm:flex-none px-3 text-gray-800`}
               value={selectedShop}
               onChange={(e) => setSelectedShop(e.target.value)}
             >
@@ -230,7 +251,67 @@ export default function ScanPage() {
             </select>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile: card list */}
+          <div className="sm:hidden divide-y divide-gray-100">
+            {items.map((item, idx) => (
+              <div key={idx} className="p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <input
+                    type="text"
+                    value={item.rawName}
+                    onChange={(e) => updateItem(idx, 'rawName', e.target.value)}
+                    className={`${inputClass} flex-1 min-w-0`}
+                    placeholder="Product name"
+                  />
+                  <button
+                    onClick={() => removeItem(idx)}
+                    className="text-red-400 active:text-red-600 font-bold text-2xl leading-none px-2 py-1"
+                    title="Remove item"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500 w-8">£</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={item.rawPrice}
+                    min={0}
+                    step={0.01}
+                    onChange={(e) => updateItem(idx, 'rawPrice', parseFloat(e.target.value) || 0)}
+                    className={`${inputClass} w-24`}
+                  />
+                  <label className="text-xs text-gray-500 ml-2">Qty</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={item.quantity}
+                    min={1}
+                    step={1}
+                    onChange={(e) => updateItem(idx, 'quantity', parseInt(e.target.value, 10) || 1)}
+                    className={`${inputClass} w-16`}
+                  />
+                  <span className="ml-auto text-xs text-gray-500 bg-gray-100 rounded px-2 py-1 whitespace-nowrap">
+                    {formatUnit(item.unitType, item.weightGrams, item.volumeMl)}
+                  </span>
+                </div>
+                <select
+                  value={item.suggestedCategory}
+                  onChange={(e) => updateItem(idx, 'suggestedCategory', e.target.value)}
+                  className={`${inputClass} w-full`}
+                >
+                  <option value="">— Select category —</option>
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-left">
@@ -250,7 +331,7 @@ export default function ScanPage() {
                         type="text"
                         value={item.rawName}
                         onChange={(e) => updateItem(idx, 'rawName', e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 min-w-[140px]"
+                        className={`${inputClass} w-full min-w-[140px]`}
                         placeholder="Product name"
                       />
                     </td>
@@ -261,7 +342,7 @@ export default function ScanPage() {
                         min={0}
                         step={0.01}
                         onChange={(e) => updateItem(idx, 'rawPrice', parseFloat(e.target.value) || 0)}
-                        className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                        className={`${inputClass} w-24`}
                       />
                     </td>
                     <td className="px-4 py-2">
@@ -273,7 +354,7 @@ export default function ScanPage() {
                       <select
                         value={item.suggestedCategory}
                         onChange={(e) => updateItem(idx, 'suggestedCategory', e.target.value)}
-                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                        className={inputClass}
                       >
                         <option value="">— Select —</option>
                         {CATEGORIES.map((cat) => (
@@ -288,7 +369,7 @@ export default function ScanPage() {
                         min={1}
                         step={1}
                         onChange={(e) => updateItem(idx, 'quantity', parseInt(e.target.value, 10) || 1)}
-                        className="w-16 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                        className={`${inputClass} w-16`}
                       />
                     </td>
                     <td className="px-4 py-2">
@@ -306,21 +387,21 @@ export default function ScanPage() {
             </table>
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
             <button
               onClick={addRow}
-              className="text-sm text-green-600 hover:text-green-700 font-medium hover:underline"
+              className="text-sm text-green-600 hover:text-green-700 font-medium hover:underline text-left"
             >
               + Add Row
             </button>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
               {saveError && (
                 <p className="text-red-600 text-xs">{saveError}</p>
               )}
               <button
                 onClick={handleSave}
                 disabled={saving || items.length === 0}
-                className="bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full sm:w-auto bg-green-600 text-white px-5 py-3 sm:py-2 rounded-lg text-base sm:text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? 'Saving…' : 'Save Receipt'}
               </button>

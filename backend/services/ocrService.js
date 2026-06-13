@@ -1,6 +1,5 @@
 const Anthropic = require('@anthropic-ai/sdk');
-const fs = require('fs');
-const path = require('path');
+const sharp = require('sharp');
 const logger = require('../utils/logger');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -14,17 +13,30 @@ const SYSTEM_PROMPT =
   'Skip totals, subtotals, discounts, VAT lines, and loyalty card savings. ' +
   'Return raw JSON only, no markdown. Example: {"shop":"Tesco","items":[{"name":"Milk","price":1.09,"quantity":1,"unit":"each"}]}';
 
+// Claude Vision accepts images up to 5MB / ~1568px before server-side downscaling.
+// Phone photos are routinely 3000px+ and can exceed 5MB, and are often EXIF-rotated,
+// so normalise everything to an upright, bounded JPEG before sending.
+async function prepareImage(imagePath) {
+  try {
+    return await sharp(imagePath)
+      .rotate() // apply EXIF orientation so sideways photos read correctly
+      .resize(1568, 1568, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+  } catch (err) {
+    throw new Error(`Could not read receipt image (${err.message}). Try re-uploading as JPEG or PNG.`);
+  }
+}
+
 async function extractText(imagePath) {
   logger.info('Starting Claude Vision OCR', { imagePath });
 
-  const imageBuffer = fs.readFileSync(imagePath);
+  const imageBuffer = await prepareImage(imagePath);
   const base64Image = imageBuffer.toString('base64');
-  const ext = path.extname(imagePath).toLowerCase().replace('.', '');
-  const mediaType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
 
   const response = await client.messages.create({
     model: 'claude-sonnet-4-5',
-    max_tokens: 1024,
+    max_tokens: 8192,
     system: SYSTEM_PROMPT,
     messages: [
       {
@@ -32,7 +44,7 @@ async function extractText(imagePath) {
         content: [
           {
             type: 'image',
-            source: { type: 'base64', media_type: mediaType, data: base64Image },
+            source: { type: 'base64', media_type: 'image/jpeg', data: base64Image },
           },
           { type: 'text', text: 'Extract all line items from this receipt.' },
         ],
@@ -40,8 +52,16 @@ async function extractText(imagePath) {
     ],
   });
 
-  const rawText = response.content[0].text;
-  console.log('[ocrService] Claude Vision raw response:', rawText);
+  if (response.stop_reason === 'max_tokens') {
+    logger.error('Claude Vision response truncated at max_tokens', { imagePath });
+    throw new Error('Receipt has too many items to parse in one pass — response was truncated.');
+  }
+
+  const textBlock = response.content.find((block) => block.type === 'text');
+  if (!textBlock) {
+    throw new Error('Claude Vision returned no text content for this image.');
+  }
+  const rawText = textBlock.text;
   logger.info('Claude Vision raw response', { rawText });
 
   let items;
